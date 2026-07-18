@@ -212,11 +212,14 @@ function renderWatchlist(data) {
 }
 
 function renderCandidates(data) {
-  const list = pickArray(data, ['candidates', 'stocks', 'data', 'items']).slice(0, 20);
+  const fullList = pickArray(data, ['candidates', 'stocks', 'data', 'items']);
   const el = document.getElementById('candidates');
-  if (!list.length) { el.innerHTML = emptyState('今日暂无选股结果'); return; }
+  if (!fullList.length) { el.innerHTML = emptyState('今日暂无选股结果'); return; }
 
-  el.innerHTML = list.map((s, i) => {
+  const showAll = el.dataset.expanded === 'true';
+  const displayList = showAll ? fullList : fullList.slice(0, 5);
+
+  let html = displayList.map((s, i) => {
     const name = pick(s, ['name', 'stock_name'], '');
     const code = pick(s, ['code', 'symbol', 'stock_code'], '');
     const score = pick(s, ['score', 'rating']);
@@ -234,6 +237,20 @@ function renderCandidates(data) {
         </div>
       </div>`;
   }).join('');
+
+  if (fullList.length > 5) {
+    const btnText = showAll ? '收起' : `展开全部 (${fullList.length})`;
+    html += `<button onclick="toggleCandidates(this)" class="w-full mt-2 py-1.5 text-xs text-gray-400 hover:text-gray-200 border border-gray-800 rounded-lg hover:bg-gray-800/50 transition">${btnText}</button>`;
+  }
+
+  el.innerHTML = html;
+}
+
+function toggleCandidates(btn) {
+  const el = document.getElementById('candidates');
+  el.dataset.expanded = el.dataset.expanded === 'true' ? 'false' : 'true';
+  // Re-fetch and re-render
+  loadData();
 }
 
 function renderAlerts(data) {
