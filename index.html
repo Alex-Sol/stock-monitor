@@ -316,6 +316,8 @@ function setStatus(state, text) {
 
 async function refreshAll() {
   setStatus('loading', '刷新中…');
+  // 每次刷新生成新的 nonce，效果等同强制刷新，彻底绕过缓存
+  forceRefreshNonce = Date.now();
   const jobs = [
     ['market_summary.json', renderMarket],
     ['watchlist.json', renderWatchlist],
