@@ -162,14 +162,30 @@ function emptyState(text) {
 /* ================= 渲染函数 ================= */
 
 function renderMarket(data) {
-  const list = pickArray(data, ['indices', 'data', 'market', 'items']);
+  let list = [];
+  if (Array.isArray(data)) {
+    list = data;
+  } else if (data && typeof data === 'object') {
+    // 后端直接返回的单个指数字典，包装成数组
+    if (data.index_name || data.index_points !== undefined) {
+      list = [{
+        name: data.index_name,
+        point: data.index_points,
+        pct: data.index_change_pct,
+        change: null
+      }];
+    } else {
+      // 尝试从标准字段提取
+      list = pickArray(data, ['indices', 'data', 'market', 'items']);
+    }
+  }
   const el = document.getElementById('market-summary');
   if (!list.length) { el.innerHTML = emptyState('暂无大盘数据'); return; }
 
   el.innerHTML = list.map(idx => {
     const name = pick(idx, ['name', 'index_name'], '未知指数');
-    const price = pick(idx, ['price', 'close', 'latest', 'point']);
-    const pct = pick(idx, ['change_pct', 'pct_change', 'changePercent', 'pct']);
+    const price = pick(idx, ['price', 'close', 'latest', 'point', 'index_points']);
+    const pct = pick(idx, ['change_pct', 'pct_change', 'changePercent', 'pct', 'index_change_pct']);
     const change = pick(idx, ['change', 'change_amount', 'diff']);
     const c = trendClass(pct);
     return `
