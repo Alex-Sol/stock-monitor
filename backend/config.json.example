@@ -12,12 +12,6 @@
     "max_alerts_per_stock_per_day": 2
   },
   "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=YOUR_WEBHOOK_KEY",
-  "wechat_app": {
-    "corp_id": "YOUR_CORP_ID",
-    "agent_id": "YOUR_AGENT_ID",
-    "secret": "YOUR_SECRET",
-    "user_id": "YOUR_USER_ID"
-  },
   "data_output_dir": "../data/",
   "llm": {
     "enabled": false,
