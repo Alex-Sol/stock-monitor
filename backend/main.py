@@ -229,7 +229,9 @@ def run_select(cfg: Dict[str, Any], max_stocks: int) -> None:
         time.sleep(HISTORY_DELAY_SECONDS)
 
     log(f"成功组装 {len(rows)}/{total} 只股票数据，开始执行筛选...")
-    out_path = Path("candidates.json")
+    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    out_path = data_dir / "candidates.json"
     if not rows:
         out_path.write_text("[]", encoding="utf-8")
         log("无可用数据，已写入空的 candidates.json")
@@ -307,6 +309,13 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
         log("无可用自选股数据，监控流程结束")
         return
 
+    # 写入 watchlist.json（自选股实时数据）
+    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    watchlist_path = data_dir / "watchlist.json"
+    watchlist_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"已保存自选股数据到 {watchlist_path}")
+
     engine = AlertEngine(config=alert_cfg)
     alerts = engine.process_alerts(pd.DataFrame(rows))
     if not alerts:
@@ -315,7 +324,26 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
     log(f"检测到 {len(alerts)} 条异动：")
     for a in alerts:
         log(f"  [{a['level']}] {a['code']} {a['name']} {a['reason']}")
-    ok = send_wechat_alert(alerts, cfg.get("webhook_url", ""))
+
+    # 追加写入 alerts.json
+    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir.mkdir(parents=True, exist_ok=True)
+    alerts_path = data_dir / "alerts.json"
+    existing = []
+    if alerts_path.exists():
+        try:
+            existing = json.loads(alerts_path.read_text(encoding="utf-8"))
+            if not isinstance(existing, list):
+                existing = []
+        except Exception:
+            existing = []
+    for a in alerts:
+        a["timestamp"] = datetime.now().isoformat()
+    existing.extend(alerts)
+    alerts_path.write_text(json.dumps(existing, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"已追加 {len(alerts)} 条预警到 {alerts_path}")
+
+    ok = send_wechat_alert(alerts, cfg)
     _notify_result(ok, "异动提醒")
 
 
@@ -351,7 +379,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
         watch_df = spot.loc[spot["code"].isin(watchlist), watch_cols].reset_index(drop=True)
         log(f"自选股当日表现共 {len(watch_df)} 条")
 
-    cand_path = Path("candidates.json")
+    cand_path = Path(cfg.get("data_output_dir", ".")) / "candidates.json"
     if cand_path.exists():
         try:
             # json.load keeps codes as strings; pd.read_json would coerce
@@ -371,17 +399,125 @@ def run_report(cfg: Dict[str, Any]) -> None:
     )
     print(report_md)
 
-    out_path = Path(f"report_{date.today().isoformat()}.md")
+    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir.mkdir(parents=True, exist_ok=True)
+
+    # 保存 Markdown 日报
+    out_path = data_dir / f"report_{date.today().isoformat()}.md"
     out_path.write_text(report_md, encoding="utf-8")
     log(f"日报已保存至 {out_path}")
 
-    ok = send_daily_report(report_md, cfg.get("webhook_url", ""))
+    # 保存结构化 daily_report.json
+    daily_report_json = {
+        "date": date.today().isoformat(),
+        "market": market,
+        "watchlist": watch_df.to_dict(orient="records") if not watch_df.empty else [],
+        "alerts": [],
+        "candidates": candidates_df.to_dict(orient="records") if not candidates_df.empty else [],
+    }
+    report_json_path = data_dir / "daily_report.json"
+    report_json_path.write_text(json.dumps(daily_report_json, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"结构化日报已保存至 {report_json_path}")
+
+    # 保存 market_summary.json
+    summary_path = data_dir / "market_summary.json"
+    summary_path.write_text(json.dumps(market, ensure_ascii=False, indent=2), encoding="utf-8")
+    log(f"大盘概况已保存至 {summary_path}")
+
+    ok = send_daily_report(report_md, cfg)
     _notify_result(ok, "收盘日报")
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
+
+import subprocess
+
+def git_commit_push(repo_root: str) -> bool:
+    """自动将 data/ 目录的变更提交并推送到 GitHub。"""
+    try:
+        root = Path(repo_root).resolve()
+        # 检查是否在 git 仓库内
+        if not (root / ".git").exists():
+            log(f"Git 仓库未初始化，跳过自动提交：{root}")
+            return False
+
+        # 检查是否有变更
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=str(root), capture_output=True, text=True, timeout=15
+        )
+        if result.returncode != 0:
+            log(f"git status 失败：{result.stderr}")
+            return False
+
+        # 过滤出 data/ 目录的变更
+        lines = [l for l in result.stdout.strip().splitlines() if "data/" in l]
+        if not lines:
+            log("data/ 目录无变更，跳过 Git 提交")
+            return True
+
+        log(f"data/ 目录有 {len(lines)} 个变更，开始 Git 提交...")
+
+        # git add data/
+        r1 = subprocess.run(
+            ["git", "add", "data/"],
+            cwd=str(root), capture_output=True, text=True, timeout=15
+        )
+        if r1.returncode != 0:
+            log(f"git add 失败：{r1.stderr}")
+            return False
+
+        # git commit
+        msg = f"[小盘] {datetime.now():%Y-%m-%d %H:%M} 更新数据"
+        r2 = subprocess.run(
+            ["git", "commit", "-m", msg],
+            cwd=str(root), capture_output=True, text=True, timeout=15
+        )
+        if r2.returncode != 0:
+            # 可能是无变更，或者是其他错误
+            if "nothing to commit" in r2.stdout.lower() or "nothing to commit" in r2.stderr.lower():
+                log("无变更需要提交")
+                return True
+            log(f"git commit 失败：{r2.stderr}")
+            return False
+
+        log(f"已提交：{msg}")
+
+        # git pull --rebase 再 push，处理可能的远程更新
+        r3 = subprocess.run(
+            ["git", "pull", "--rebase", "origin", "main"],
+            cwd=str(root), capture_output=True, text=True, timeout=30
+        )
+        if r3.returncode != 0:
+            # 可能没有上游分支，或者是真正的冲突
+            if "no upstream branch" in r3.stderr.lower() or "No such file or directory" in r3.stderr:
+                log("无上游分支，直接 push")
+            else:
+                log(f"git pull --rebase 失败：{r3.stderr}")
+                # 尝试回退 rebase
+                subprocess.run(
+                    ["git", "rebase", "--abort"],
+                    cwd=str(root), capture_output=True, text=True, timeout=10
+                )
+                return False
+
+        r4 = subprocess.run(
+            ["git", "push", "origin", "main"],
+            cwd=str(root), capture_output=True, text=True, timeout=30
+        )
+        if r4.returncode != 0:
+            log(f"git push 失败：{r4.stderr}")
+            return False
+
+        log("Git 推送成功")
+        return True
+
+    except subprocess.TimeoutExpired:
+        log("Git 操作超时")
+        return False
+    except Exception as exc:
+        log(f"Git 自动提交异常：{exc}")
+        return False
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="A股监控系统主入口")
     parser.add_argument(
@@ -397,6 +533,11 @@ def main() -> None:
         default=50,
         help="select 模式粗筛后拉取历史数据的股票上限（默认 50）",
     )
+    parser.add_argument(
+        "--no-git",
+        action="store_true",
+        help="跳过 Git 自动提交",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
@@ -408,6 +549,11 @@ def main() -> None:
     else:
         run_report(cfg)
     log("流程结束")
+
+    # Git 自动提交：仓库根目录为 backend 的父目录
+    if not args.no_git:
+        repo_root = Path(__file__).resolve().parent.parent
+        git_commit_push(str(repo_root))
 
 
 if __name__ == "__main__":

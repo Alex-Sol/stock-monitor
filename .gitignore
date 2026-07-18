@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# 敏感配置（包含 webhook key、API secret 等）
+backend/config.json
+
+# 本地数据（由脚本自动生成并 push 到 data/ 目录，这里忽略的是本地开发时可能产生的临时文件）
+*.log
+backend/*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
