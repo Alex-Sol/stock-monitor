@@ -237,7 +237,7 @@ function renderWatchlist(data) {
         <td class="px-4 py-3">
           <div class="font-medium">${stockLink(name, code)}</div>
           <div class="text-xs text-gray-500">${esc(code)}</div>
-          <div class="text-xs text-gray-600 mt-0.5">${pick(s, ['update_time', 'timestamp', 'date'], '')}</div>
+          <div class="text-xs text-gray-600 mt-0.5">${pick(s, ['tick_time', 'update_time', 'timestamp'], '')}</div>
         </td>
         <td class="px-4 py-3 text-right font-mono ${c}">${fmtNum(price)}</td>
         <td class="px-4 py-3 text-right font-mono ${c}">${fmtPct(pct)}</td>
