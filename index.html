@@ -176,7 +176,7 @@ function indexLink(name) {
   };
   const code = codeMap[name];
   if (!code) return esc(name);
-  return `<a href="https://stockpage.10jqka.com.cn/${code}/" target="_blank" rel="noopener" class="hover:text-blue-400 hover:underline">${esc(name)}</a>`;
+  return `<a href="https://quote.eastmoney.com/zs${code}.html" target="_blank" rel="noopener" class="hover:text-blue-400 hover:underline">${esc(name)}</a>`;
 }
 
 function renderMarket(data) {
