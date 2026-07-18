@@ -178,6 +178,8 @@ function indexLink(name) {
   if (!code) return esc(name);
   return `<a href="https://stockpage.10jqka.com.cn/${code}/" target="_blank" rel="noopener" class="hover:text-blue-400 hover:underline">${esc(name)}</a>`;
 }
+
+function renderMarket(data) {
   let list = [];
   if (Array.isArray(data)) {
     list = data;
