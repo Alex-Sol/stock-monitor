@@ -212,7 +212,7 @@ function renderWatchlist(data) {
 }
 
 function renderCandidates(data) {
-  const list = pickArray(data, ['candidates', 'stocks', 'data', 'items']).slice(0, 5);
+  const list = pickArray(data, ['candidates', 'stocks', 'data', 'items']).slice(0, 20);
   const el = document.getElementById('candidates');
   if (!list.length) { el.innerHTML = emptyState('今日暂无选股结果'); return; }
 

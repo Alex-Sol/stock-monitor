@@ -108,6 +108,17 @@ def load_config(path: str) -> Dict[str, Any]:
     return merged
 
 
+def resolve_data_dir(cfg: Dict[str, Any]) -> Path:
+    """Resolve data_output_dir relative to the project root (parent of backend/)."""
+    raw = cfg.get("data_output_dir", ".")
+    p = Path(raw)
+    if p.is_absolute():
+        return p
+    # 相对路径基于 backend/main.py 的父目录的父目录（项目根目录）
+    project_root = Path(__file__).resolve().parent.parent
+    return (project_root / p).resolve()
+
+
 def build_selector_config(th: Dict[str, Any]) -> StockSelectorConfig:
     """Map config.json ``thresholds`` onto a StockSelectorConfig."""
     return StockSelectorConfig(
@@ -260,7 +271,7 @@ def run_select(cfg: Dict[str, Any], max_stocks: int) -> None:
         time.sleep(HISTORY_DELAY_SECONDS)
 
     log(f"成功组装 {len(rows)}/{total} 只股票数据，开始执行筛选...")
-    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir = resolve_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
     out_path = data_dir / "candidates.json"
     if not rows:
@@ -355,7 +366,7 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
         return
 
     # 写入 watchlist.json（自选股实时数据）
-    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir = resolve_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
     watchlist_path = data_dir / "watchlist.json"
     watchlist_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -381,7 +392,7 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
         log(f"  [{a['level']}] {a['code']} {a['name']} {a['reason']}")
 
     # 追加写入 alerts.json
-    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir = resolve_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
     alerts_path = data_dir / "alerts.json"
     existing = []
@@ -407,7 +418,7 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 def _load_recent_alerts(cfg: Dict[str, Any], limit: int = 10) -> List[dict]:
     """Read the most recent alerts from alerts.json (for the LLM report)."""
-    alerts_path = Path(cfg.get("data_output_dir", ".")) / "alerts.json"
+    alerts_path = resolve_data_dir(cfg) / "alerts.json"
     if not alerts_path.exists():
         return []
     try:
@@ -449,7 +460,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
         watch_df = spot.loc[spot["code"].isin(watchlist), watch_cols].reset_index(drop=True)
         log(f"自选股当日表现共 {len(watch_df)} 条")
 
-    cand_path = Path(cfg.get("data_output_dir", ".")) / "candidates.json"
+    cand_path = resolve_data_dir(cfg) / "candidates.json"
     if cand_path.exists():
         try:
             # json.load keeps codes as strings; pd.read_json would coerce
@@ -489,7 +500,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
         )
     print(report_md)
 
-    data_dir = Path(cfg.get("data_output_dir", "."))
+    data_dir = resolve_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # 保存 Markdown 日报
