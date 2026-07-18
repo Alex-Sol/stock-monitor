@@ -234,18 +234,39 @@ function renderAlerts(data) {
   const el = document.getElementById('alerts');
   if (!list.length) { el.innerHTML = emptyState('暂无预警记录'); return; }
 
+  const typeColors = {
+    warning: 'bg-red-500/15 text-red-400',
+    emergency: 'bg-red-600/20 text-red-300',
+    info: 'bg-blue-500/15 text-blue-400',
+  };
+
   el.innerHTML = list.map(a => {
     const time = pick(a, ['time', 'created_at', 'timestamp', 'date'], '');
     const type = pick(a, ['type', 'level', 'category'], '提醒');
     const msg = pick(a, ['message', 'content', 'msg'], '');
     const stock = pick(a, ['stock', 'name', 'stock_name'], '');
+    const code = pick(a, ['code', 'symbol'], '');
+    const price = pick(a, ['price', 'close']);
+    const pct = pick(a, ['change_pct', 'pct_change', 'pct']);
+    const volRatio = pick(a, ['volume_ratio', 'volumeRatio']);
+    const trigger = pick(a, ['trigger', 'reason_detail'], '');
+    const tc = typeColors[type] || typeColors.info;
+    const pc = trendClass(pct);
+
     return `
-      <div class="px-4 py-3 flex items-start gap-3 text-sm">
-        <span class="shrink-0 text-xs text-gray-500 font-mono pt-0.5">${esc(time)}</span>
-        <div class="min-w-0">
-          <span class="inline-block text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 mr-1.5">${esc(type)}</span>
-          ${stock ? `<span class="font-medium mr-1">${esc(stock)}</span>` : ''}
-          <span class="text-gray-300">${esc(msg)}</span>
+      <div class="px-4 py-3 border-b border-gray-800/60 last:border-0">
+        <div class="flex items-center gap-2 mb-1.5">
+          <span class="shrink-0 text-xs text-gray-500 font-mono">${esc(time)}</span>
+          <span class="inline-block text-xs px-1.5 py-0.5 rounded ${tc}">${esc(type.toUpperCase())}</span>
+          <span class="font-medium text-sm">${esc(stock)}</span>
+          ${code ? `<span class="text-xs text-gray-500">${esc(code)}</span>` : ''}
+        </div>
+        <div class="text-sm text-gray-300 mb-1">${esc(msg)}</div>
+        <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          ${price !== null ? `<span>价格 <span class="font-mono ${pc}">${fmtNum(price)}</span></span>` : ''}
+          ${pct !== null ? `<span>涨跌 <span class="font-mono ${pc}">${fmtPct(pct)}</span></span>` : ''}
+          ${volRatio !== null ? `<span>量比 <span class="font-mono">${fmtNum(volRatio, 2)}x</span></span>` : ''}
+          ${trigger ? `<span class="text-gray-600">触发：${esc(trigger)}</span>` : ''}
         </div>
       </div>`;
   }).join('');

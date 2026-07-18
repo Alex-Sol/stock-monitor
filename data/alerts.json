@@ -4,20 +4,32 @@
     "code": "300750",
     "time": "10:15",
     "type": "warning",
-    "message": "跌破20日均线，跌幅超5%"
+    "price": 360.00,
+    "change_pct": -5.2,
+    "volume_ratio": 1.19,
+    "message": "跌破20日均线，跌幅超5%",
+    "trigger": "价格 360.00 < MA20 371.50"
   },
   {
     "stock": "比亚迪",
     "code": "002594",
     "time": "11:20",
     "type": "info",
-    "message": "成交量突增，接近前5日均量3倍"
+    "price": 93.47,
+    "change_pct": -4.8,
+    "volume_ratio": 2.87,
+    "message": "成交量突增，接近前5日均量3倍",
+    "trigger": "成交量 2.87x 前5日均量"
   },
   {
     "stock": "招商银行",
     "code": "600036",
     "time": "14:05",
     "type": "info",
-    "message": "突破近20日高点"
+    "price": 38.02,
+    "change_pct": 3.5,
+    "volume_ratio": 1.11,
+    "message": "突破近20日高点",
+    "trigger": "价格 38.02 > 20日高点 38.00"
   }
 ]
