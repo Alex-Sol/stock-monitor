@@ -520,6 +520,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
         "watchlist": watch_df.to_dict(orient="records") if not watch_df.empty else [],
         "alerts": [],
         "candidates": candidates_df.to_dict(orient="records") if not candidates_df.empty else [],
+        "markdown": report_md,
     }
     if llm_preview is not None:
         # 供前端「日报预览」展示的 LLM 摘要字段
