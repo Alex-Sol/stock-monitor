@@ -1,29 +1,23 @@
 [
   {
+    "stock": "宁德时代",
     "code": "300750",
-    "name": "宁德时代",
-    "price": 360.00,
-    "change_pct": -5.2,
-    "reason": "跌破20日均线，跌幅超5%",
-    "level": "warning",
-    "timestamp": "2026-07-17T10:15:00"
+    "time": "10:15",
+    "type": "warning",
+    "message": "跌破20日均线，跌幅超5%"
   },
   {
+    "stock": "比亚迪",
     "code": "002594",
-    "name": "比亚迪",
-    "price": 93.47,
-    "change_pct": -4.8,
-    "reason": "成交量突增，接近前5日均量3倍",
-    "level": "info",
-    "timestamp": "2026-07-17T11:20:00"
+    "time": "11:20",
+    "type": "info",
+    "message": "成交量突增，接近前5日均量3倍"
   },
   {
+    "stock": "招商银行",
     "code": "600036",
-    "name": "招商银行",
-    "price": 38.02,
-    "change_pct": 3.5,
-    "reason": "突破近20日高点",
-    "level": "info",
-    "timestamp": "2026-07-17T14:05:00"
+    "time": "14:05",
+    "type": "info",
+    "message": "突破近20日高点"
   }
 ]

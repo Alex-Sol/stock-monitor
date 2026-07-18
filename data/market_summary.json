@@ -1,13 +1,20 @@
-{
-  "date": "2026-07-17",
-  "index_name": "上证指数",
-  "index_points": 3764.16,
-  "index_change_pct": -3.05,
-  "total_turnover": 8923.5,
-  "advance_count": 423,
-  "decline_count": 4892,
-  "shenzhen_index": 13706.88,
-  "shenzhen_change_pct": -5.40,
-  "chinext_index": 3428.63,
-  "chinext_change_pct": -7.15
-}
+[
+  {
+    "name": "上证指数",
+    "price": 3764.16,
+    "change": -118.76,
+    "change_pct": -3.05
+  },
+  {
+    "name": "深证成指",
+    "price": 13706.88,
+    "change": -780.12,
+    "change_pct": -5.40
+  },
+  {
+    "name": "创业板指",
+    "price": 3428.63,
+    "change": -263.48,
+    "change_pct": -7.15
+  }
+]
