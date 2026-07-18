@@ -385,23 +385,27 @@ function startCountdown() {
   }, 1000);
 }
 
-/* ================= 强制刷新（绕过缓存） ================= */
+/* ================= 强制刷新（绕过所有缓存） ================= */
 
 let forceRefreshNonce = 0;
 
 function forceRefresh() {
+  // 方案1：带随机参数重新加载整个页面，彻底绕过 index.html + 数据的缓存
+  const url = new URL(location.href);
+  url.searchParams.set('_', Date.now());
+  location.href = url.toString();
+}
+
+// 如果 URL 中有 _ 参数，说明是强制刷新后的重载，立即刷新数据
+if (new URL(location.href).searchParams.has('_')) {
   forceRefreshNonce = Date.now();
-  setStatus('loading', '强制刷新中…');
-  // 清除倒计时，避免冲突
-  countdown = REFRESH_INTERVAL;
-  refreshAll();
 }
 
 // 覆盖 fetchJson 以支持强制刷新
 const _originalFetchJson = fetchJson;
 fetchJson = async function(name) {
   const url = `${RAW_BASE}/${name}?_=${forceRefreshNonce || Date.now()}`;
-  const resp = await fetch(url, { cache: 'no-store' });
+  const resp = await fetch(url, { cache: 'reload' });
   if (!resp.ok) throw new Error(`${name}: HTTP ${resp.status}`);
   return resp.json();
 };
