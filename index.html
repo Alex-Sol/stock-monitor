@@ -211,7 +211,10 @@ function renderWatchlist(data) {
   }).join('');
 }
 
+let candidatesData = null; // 缓存选股数据，用于展开/收起
+
 function renderCandidates(data) {
+  candidatesData = data;
   const fullList = pickArray(data, ['candidates', 'stocks', 'data', 'items']);
   const el = document.getElementById('candidates');
   if (!fullList.length) { el.innerHTML = emptyState('今日暂无选股结果'); return; }
@@ -249,8 +252,9 @@ function renderCandidates(data) {
 function toggleCandidates(btn) {
   const el = document.getElementById('candidates');
   el.dataset.expanded = el.dataset.expanded === 'true' ? 'false' : 'true';
-  // Re-fetch and re-render
-  loadData();
+  if (candidatesData) {
+    renderCandidates(candidatesData);
+  }
 }
 
 function renderAlerts(data) {
