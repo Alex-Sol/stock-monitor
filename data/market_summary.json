@@ -1,23 +1,23 @@
 [
   {
     "name": "上证指数",
-    "price": 3882.92,
-    "change": 12.35,
-    "change_pct": 0.32,
-    "date": "2026-07-16"
+    "price": 3870.57,
+    "change": 8.21,
+    "change_pct": 0.21,
+    "date": "2026-07-15"
   },
   {
     "name": "深证成指",
-    "price": 14486.78,
-    "change": 45.67,
-    "change_pct": 0.32,
-    "date": "2026-07-16"
+    "price": 14441.11,
+    "change": 28.45,
+    "change_pct": 0.2,
+    "date": "2026-07-15"
   },
   {
     "name": "创业板指",
-    "price": 3691.78,
-    "change": 8.23,
-    "change_pct": 0.22,
-    "date": "2026-07-16"
+    "price": 3683.55,
+    "change": 5.67,
+    "change_pct": 0.15,
+    "date": "2026-07-15"
   }
 ]
