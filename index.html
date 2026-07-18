@@ -22,6 +22,7 @@
         </span>
         <span>最后更新：<span id="last-updated" class="text-gray-200">--</span></span>
         <span>下次刷新：<span id="countdown" class="text-gray-200">60s</span></span>
+        <button onclick="forceRefresh()" class="ml-1 px-2 py-0.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-colors" title="强制刷新（清除缓存）">🔄</button>
       </div>
     </div>
   </header>
@@ -379,7 +380,26 @@ function startCountdown() {
   }, 1000);
 }
 
-/* ================= 启动 ================= */
+/* ================= 强制刷新（绕过缓存） ================= */
+
+let forceRefreshNonce = 0;
+
+function forceRefresh() {
+  forceRefreshNonce = Date.now();
+  setStatus('loading', '强制刷新中…');
+  // 清除倒计时，避免冲突
+  countdown = REFRESH_INTERVAL;
+  refreshAll();
+}
+
+// 覆盖 fetchJson 以支持强制刷新
+const _originalFetchJson = fetchJson;
+fetchJson = async function(name) {
+  const url = `${RAW_BASE}/${name}?_=${forceRefreshNonce || Date.now()}`;
+  const resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`${name}: HTTP ${resp.status}`);
+  return resp.json();
+};
 refreshAll();
 startCountdown();
 </script>
