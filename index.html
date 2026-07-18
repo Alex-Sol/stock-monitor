@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>股票盯盘看板</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- 顶部栏 -->
+  <header class="sticky top-0 z-10 bg-gray-900/95 backdrop-blur border-b border-gray-800">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+      <h1 class="text-lg font-bold tracking-wide">📈 股票盯盘看板</h1>
+      <div class="flex items-center gap-3 text-xs sm:text-sm text-gray-400">
+        <span id="refresh-status" class="inline-flex items-center gap-1">
+          <span class="w-2 h-2 rounded-full bg-gray-500" id="status-dot"></span>
+          <span id="status-text">待刷新</span>
+        </span>
+        <span>最后更新：<span id="last-updated" class="text-gray-200">--</span></span>
+        <span>下次刷新：<span id="countdown" class="text-gray-200">60s</span></span>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-6xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- 大盘概况 -->
+    <section>
+      <h2 class="text-sm font-semibold text-gray-400 mb-3">大盘概况</h2>
+      <div id="market-summary" class="grid grid-cols-1 sm:grid-cols-3 gap-3"></div>
+    </section>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 自选股 -->
+      <section class="lg:col-span-2">
+        <h2 class="text-sm font-semibold text-gray-400 mb-3">自选股</h2>
+        <div class="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="text-gray-500 text-xs border-b border-gray-800">
+                  <th class="text-left px-4 py-2 font-medium">名称</th>
+                  <th class="text-right px-4 py-2 font-medium">最新价</th>
+                  <th class="text-right px-4 py-2 font-medium">涨跌幅</th>
+                  <th class="text-right px-4 py-2 font-medium">成交量</th>
+                </tr>
+              </thead>
+              <tbody id="watchlist-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- 选股 Top 5 -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-400 mb-3">今日选股 Top 5</h2>
+        <div id="candidates" class="space-y-2"></div>
+      </section>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+      <!-- 预警记录 -->
+      <section class="lg:col-span-2">
+        <h2 class="text-sm font-semibold text-gray-400 mb-3">预警记录（最近 10 条）</h2>
+        <div id="alerts" class="bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800"></div>
+      </section>
+
+      <!-- 日报预览 -->
+      <section>
+        <h2 class="text-sm font-semibold text-gray-400 mb-3">日报预览</h2>
+        <div id="daily-report" class="bg-gray-900 rounded-xl border border-gray-800 p-4"></div>
+      </section>
+    </div>
+
+  </main>
+
+  <footer class="text-center text-xs text-gray-600 pb-6">
+    数据来源：GitHub 仓库 data/ 目录 · 每 60 秒自动刷新 · 仅供个人参考，不构成投资建议
+  </footer>
+
+<script>
+/* ================= 配置：改成你自己的 GitHub 用户名 ================= */
+const GITHUB_USER = 'Alex-Sol';
+const REPO = 'stock-monitor';
+const BRANCH = 'main';
+const REFRESH_INTERVAL = 60; // 秒
+
+const RAW_BASE = `https://raw.githubusercontent.com/${GITHUB_USER}/${REPO}/${BRANCH}/data`;
+
+/* ================= 工具函数 ================= */
+
+// 涨跌颜色：A 股习惯 红涨 / 绿跌 / 灰平
+function trendClass(pct) {
+  if (pct > 0) return 'text-red-400';
+  if (pct < 0) return 'text-green-400';
+  return 'text-gray-400';
+}
+
+function fmtPct(pct) {
+  if (pct === null || pct === undefined || isNaN(pct)) return '--';
+  const sign = pct > 0 ? '+' : '';
+  return `${sign}${Number(pct).toFixed(2)}%`;
+}
+
+function fmtNum(n, digits = 2) {
+  if (n === null || n === undefined || isNaN(n)) return '--';
+  return Number(n).toFixed(digits);
+}
+
+// 成交量格式化：万 / 亿
+function fmtVolume(v) {
+  if (v === null || v === undefined || isNaN(v)) return '--';
+  v = Number(v);
+  if (v >= 1e8) return (v / 1e8).toFixed(2) + ' 亿';
+  if (v >= 1e4) return (v / 1e4).toFixed(2) + ' 万';
+  return String(v);
+}
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// 容错取值：从多个可能的字段名里取第一个存在的
+function pick(obj, keys, fallback = null) {
+  for (const k of keys) {
+    if (obj && obj[k] !== undefined && obj[k] !== null) return obj[k];
+  }
+  return fallback;
+}
+
+// 容错取数组：支持顶层数组或常见包装字段
+function pickArray(data, keys) {
+  if (Array.isArray(data)) return data;
+  for (const k of keys) {
+    if (data && Array.isArray(data[k])) return data[k];
+  }
+  return [];
+}
+
+async function fetchJson(name) {
+  const url = `${RAW_BASE}/${name}?t=${Date.now()}`; // 防缓存
+  const resp = await fetch(url, { cache: 'no-store' });
+  if (!resp.ok) throw new Error(`${name}: HTTP ${resp.status}`);
+  return resp.json();
+}
+
+function emptyState(text) {
+  return `<div class="px-4 py-6 text-center text-gray-500 text-sm">${esc(text)}</div>`;
+}
+
+/* ================= 渲染函数 ================= */
+
+function renderMarket(data) {
+  const list = pickArray(data, ['indices', 'data', 'market', 'items']);
+  const el = document.getElementById('market-summary');
+  if (!list.length) { el.innerHTML = emptyState('暂无大盘数据'); return; }
+
+  el.innerHTML = list.map(idx => {
+    const name = pick(idx, ['name', 'index_name'], '未知指数');
+    const price = pick(idx, ['price', 'close', 'latest', 'point']);
+    const pct = pick(idx, ['change_pct', 'pct_change', 'changePercent', 'pct']);
+    const change = pick(idx, ['change', 'change_amount', 'diff']);
+    const c = trendClass(pct);
+    return `
+      <div class="bg-gray-900 rounded-xl border border-gray-800 p-4">
+        <div class="text-xs text-gray-500 mb-1">${esc(name)}</div>
+        <div class="text-2xl font-bold ${c}">${fmtNum(price)}</div>
+        <div class="text-sm ${c} mt-1">
+          ${change !== null ? fmtNum(change) + ' · ' : ''}${fmtPct(pct)}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderWatchlist(data) {
+  const list = pickArray(data, ['stocks', 'watchlist', 'data', 'items']);
+  const el = document.getElementById('watchlist-body');
+  if (!list.length) {
+    el.innerHTML = `<tr><td colspan="4">${emptyState('暂无自选股数据')}</td></tr>`;
+    return;
+  }
+
+  el.innerHTML = list.map(s => {
+    const name = pick(s, ['name', 'stock_name'], '');
+    const code = pick(s, ['code', 'symbol', 'stock_code'], '');
+    const price = pick(s, ['price', 'close', 'latest']);
+    const pct = pick(s, ['change_pct', 'pct_change', 'changePercent', 'pct']);
+    const vol = pick(s, ['volume', 'vol', 'turnover_volume']);
+    const c = trendClass(pct);
+    return `
+      <tr class="border-b border-gray-800/60 last:border-0 hover:bg-gray-800/40">
+        <td class="px-4 py-3">
+          <div class="font-medium">${esc(name)}</div>
+          <div class="text-xs text-gray-500">${esc(code)}</div>
+        </td>
+        <td class="px-4 py-3 text-right font-mono ${c}">${fmtNum(price)}</td>
+        <td class="px-4 py-3 text-right font-mono ${c}">${fmtPct(pct)}</td>
+        <td class="px-4 py-3 text-right font-mono text-gray-300">${fmtVolume(vol)}</td>
+      </tr>`;
+  }).join('');
+}
+
+function renderCandidates(data) {
+  const list = pickArray(data, ['candidates', 'stocks', 'data', 'items']).slice(0, 5);
+  const el = document.getElementById('candidates');
+  if (!list.length) { el.innerHTML = emptyState('今日暂无选股结果'); return; }
+
+  el.innerHTML = list.map((s, i) => {
+    const name = pick(s, ['name', 'stock_name'], '');
+    const code = pick(s, ['code', 'symbol', 'stock_code'], '');
+    const score = pick(s, ['score', 'rating']);
+    const reason = pick(s, ['reason', 'summary', 'signal'], '');
+    return `
+      <div class="bg-gray-900 rounded-xl border border-gray-800 p-3 flex gap-3">
+        <div class="shrink-0 w-6 h-6 rounded-full bg-blue-600/20 text-blue-400
+                    flex items-center justify-center text-xs font-bold">${i + 1}</div>
+        <div class="min-w-0">
+          <div class="text-sm font-medium">
+            ${esc(name)} <span class="text-xs text-gray-500 font-normal">${esc(code)}</span>
+            ${score !== null ? `<span class="ml-1 text-xs text-amber-400">评分 ${esc(score)}</span>` : ''}
+          </div>
+          ${reason ? `<div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${esc(reason)}</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderAlerts(data) {
+  const list = pickArray(data, ['alerts', 'data', 'items']).slice(-10).reverse();
+  const el = document.getElementById('alerts');
+  if (!list.length) { el.innerHTML = emptyState('暂无预警记录'); return; }
+
+  el.innerHTML = list.map(a => {
+    const time = pick(a, ['time', 'created_at', 'timestamp', 'date'], '');
+    const type = pick(a, ['type', 'level', 'category'], '提醒');
+    const msg = pick(a, ['message', 'content', 'msg'], '');
+    const stock = pick(a, ['stock', 'name', 'stock_name'], '');
+    return `
+      <div class="px-4 py-3 flex items-start gap-3 text-sm">
+        <span class="shrink-0 text-xs text-gray-500 font-mono pt-0.5">${esc(time)}</span>
+        <div class="min-w-0">
+          <span class="inline-block text-xs px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 mr-1.5">${esc(type)}</span>
+          ${stock ? `<span class="font-medium mr-1">${esc(stock)}</span>` : ''}
+          <span class="text-gray-300">${esc(msg)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function renderDailyReport(data) {
+  const el = document.getElementById('daily-report');
+  if (!data || typeof data !== 'object') { el.innerHTML = emptyState('暂无日报'); return; }
+
+  const date = pick(data, ['date', 'report_date', 'day'], '');
+  const title = pick(data, ['title', 'name'], '每日复盘');
+  const summary = pick(data, ['summary', 'content', 'text'], '');
+  const points = pickArray(data, ['highlights', 'points', 'sections']);
+
+  el.innerHTML = `
+    <div class="text-xs text-gray-500 mb-1">${esc(date)}</div>
+    <div class="font-semibold mb-2">${esc(title)}</div>
+    ${summary ? `<p class="text-sm text-gray-300 leading-relaxed whitespace-pre-line">${esc(summary)}</p>` : ''}
+    ${points.length ? `<ul class="mt-2 space-y-1 text-sm text-gray-300 list-disc list-inside">
+      ${points.map(p => `<li>${esc(typeof p === 'string' ? p : pick(p, ['text', 'title', 'summary'], JSON.stringify(p)))}</li>`).join('')}
+    </ul>` : ''}`;
+}
+
+/* ================= 刷新逻辑 ================= */
+
+let countdownTimer = null;
+let countdown = REFRESH_INTERVAL;
+
+function setStatus(state, text) {
+  const dot = document.getElementById('status-dot');
+  const colors = {
+    loading: 'bg-yellow-400 animate-pulse',
+    ok: 'bg-green-500',
+    error: 'bg-red-500',
+    idle: 'bg-gray-500',
+  };
+  dot.className = 'w-2 h-2 rounded-full ' + (colors[state] || colors.idle);
+  document.getElementById('status-text').textContent = text;
+}
+
+async function refreshAll() {
+  setStatus('loading', '刷新中…');
+  const jobs = [
+    ['market_summary.json', renderMarket],
+    ['watchlist.json', renderWatchlist],
+    ['candidates.json', renderCandidates],
+    ['alerts.json', renderAlerts],
+    ['daily_report.json', renderDailyReport],
+  ];
+
+  const results = await Promise.allSettled(
+    jobs.map(([file]) => fetchJson(file))
+  );
+
+  let failed = 0;
+  results.forEach((r, i) => {
+    const [, render] = jobs[i];
+    if (r.status === 'fulfilled') {
+      try { render(r.value); } catch (e) { console.error('渲染失败', jobs[i][0], e); }
+    } else {
+      failed++;
+      console.error('加载失败', jobs[i][0], r.reason);
+    }
+  });
+
+  const now = new Date();
+  document.getElementById('last-updated').textContent = now.toLocaleTimeString('zh-CN');
+
+  if (failed === 0) setStatus('ok', '已刷新');
+  else if (failed === jobs.length) setStatus('error', '刷新失败');
+  else setStatus('error', `部分失败（${failed}/${jobs.length}）`);
+
+  countdown = REFRESH_INTERVAL;
+}
+
+function startCountdown() {
+  countdown = REFRESH_INTERVAL;
+  countdownTimer = setInterval(() => {
+    countdown--;
+    if (countdown <= 0) { refreshAll(); }
+    document.getElementById('countdown').textContent = countdown + 's';
+  }, 1000);
+}
+
+/* ================= 启动 ================= */
+refreshAll();
+startCountdown();
+</script>
+</body>
+</html>
