@@ -5,7 +5,7 @@
     "close": 27.99,
     "ma20": 26.64,
     "volume_5d": 4911816197.6,
-    "rsi14": 66.70,
+    "rsi14": 66.7,
     "macd_hist": 0.34,
     "pe": 22.5,
     "high_20d": 28.19,
@@ -15,12 +15,13 @@
     "has_bad_news": false,
     "volume_today": 242860129,
     "macd_hist_prev": 0.33,
-    "score": 58
+    "score": 58,
+    "date": "2026-07-16"
   },
   {
     "code": "600519",
     "name": "贵州茅台",
-    "close": 1253.00,
+    "close": 1253.0,
     "ma20": 1204.07,
     "volume_5d": 6516927905.6,
     "rsi14": 58.17,
@@ -33,7 +34,8 @@
     "has_bad_news": false,
     "volume_today": 5841730,
     "macd_hist_prev": 21.52,
-    "score": 52
+    "score": 52,
+    "date": "2026-07-16"
   },
   {
     "code": "002594",
@@ -45,13 +47,14 @@
     "macd_hist": 2.84,
     "pe": 35.2,
     "high_20d": 95.95,
-    "low_20d": 77.60,
+    "low_20d": 77.6,
     "change_20d": 0.067,
     "sector": "汽车整车",
     "has_bad_news": false,
     "volume_today": 68734582,
     "macd_hist_prev": 2.83,
-    "score": 49
+    "score": 49,
+    "date": "2026-07-16"
   },
   {
     "code": "601899",
@@ -69,24 +72,26 @@
     "has_bad_news": false,
     "volume_today": 290416859,
     "macd_hist_prev": 0.84,
-    "score": 42
+    "score": 42,
+    "date": "2026-07-16"
   },
   {
     "code": "000977",
     "name": "浪潮信息",
-    "close": 77.40,
+    "close": 77.4,
     "ma20": 73.63,
     "volume_5d": 13384166182.8,
     "rsi14": 54.53,
     "macd_hist": 1.25,
     "pe": 45.8,
-    "high_20d": 82.50,
-    "low_20d": 68.30,
+    "high_20d": 82.5,
+    "low_20d": 68.3,
     "change_20d": 0.089,
     "sector": "计算机设备",
     "has_bad_news": false,
     "volume_today": 125000000,
-    "macd_hist_prev": 1.10,
-    "score": 38
+    "macd_hist_prev": 1.1,
+    "score": 38,
+    "date": "2026-07-16"
   }
 ]
