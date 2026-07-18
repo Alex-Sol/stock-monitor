@@ -2,39 +2,39 @@
   {
     "name": "上证指数",
     "code": "sh000001",
-    "price": 3764.16,
-    "change_pct": -3.05,
-    "change": -118.45,
+    "price": 3425.68,
+    "change_pct": 0.52,
+    "change": 17.85,
     "total_turnover": 0.0,
-    "advance_count": 405,
-    "decline_count": 4758
+    "advance_count": 2850,
+    "decline_count": 2200
   },
   {
     "name": "深证成指",
     "code": "sz399001",
-    "price": 11265.8,
-    "change_pct": -2.18,
-    "change": -251.32
+    "price": 10850.3,
+    "change_pct": 0.78,
+    "change": 84.2
   },
   {
     "name": "创业板指",
     "code": "sz399006",
-    "price": 2156.32,
-    "change_pct": -1.92,
-    "change": -42.15
+    "price": 2085.6,
+    "change_pct": 1.15,
+    "change": 23.7
   },
   {
     "name": "沪深300",
     "code": "sh000300",
-    "price": 4021.56,
-    "change_pct": -2.85,
-    "change": -118.12
+    "price": 3650.2,
+    "change_pct": 0.65,
+    "change": 23.5
   },
   {
     "name": "科创50",
     "code": "sh000688",
-    "price": 1023.45,
-    "change_pct": -1.56,
-    "change": -16.23
+    "price": 985.3,
+    "change_pct": 0.35,
+    "change": 3.45
   }
 ]

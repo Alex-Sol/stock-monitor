@@ -1,35 +1,24 @@
 [
   {
-    "time": "2026-07-17 14:35:22",
-    "type": "warning",
-    "message": "比亚迪涨超2%，成交量放大",
-    "stock": "比亚迪",
-    "code": "002594",
-    "price": 93.47,
-    "change_pct": 2.18,
-    "volume_ratio": 2.1,
-    "trigger": "涨跌幅≥2%"
-  },
-  {
-    "time": "2026-07-17 10:22:15",
-    "type": "emergency",
-    "message": "贵州茅台跌破1260，注意风险",
-    "stock": "贵州茅台",
-    "code": "600519",
-    "price": 1253.0,
-    "change_pct": -0.48,
-    "volume_ratio": 0.9,
-    "trigger": "价格跌破支撑位"
-  },
-  {
-    "time": "2026-07-17 11:05:33",
+    "time": "2026-07-15 14:20:10",
     "type": "info",
-    "message": "宁德时代放量上涨，突破200元关口",
+    "message": "宁德时代放量上涨，突破205元",
     "stock": "宁德时代",
     "code": "300750",
-    "price": 198.5,
-    "change_pct": 1.25,
-    "volume_ratio": 1.8,
+    "price": 205.8,
+    "change_pct": 1.92,
+    "volume_ratio": 2.1,
     "trigger": "突破关键价位"
+  },
+  {
+    "time": "2026-07-15 10:45:33",
+    "type": "warning",
+    "message": "比亚迪涨超1.5%，接近前高",
+    "stock": "比亚迪",
+    "code": "002594",
+    "price": 278.5,
+    "change_pct": 1.56,
+    "volume_ratio": 1.8,
+    "trigger": "涨跌幅≥1.5%"
   }
 ]
