@@ -257,9 +257,12 @@ function renderCandidates(data) {
 }
 
 function renderAlerts(data) {
-  const list = pickArray(data, ['alerts', 'data', 'items']).slice(-10).reverse();
+  const list = pickArray(data, ['alerts', 'data', 'items']).slice(-20).reverse();
   const el = document.getElementById('alerts');
   if (!list.length) { el.innerHTML = emptyState('暂无预警记录'); return; }
+
+  // 滚动窗口展示
+  el.className = 'bg-gray-900 rounded-xl border border-gray-800 divide-y divide-gray-800 max-h-96 overflow-y-auto pr-1';
 
   const typeColors = {
     warning: 'bg-red-500/15 text-red-400',
