@@ -1,0 +1,414 @@
+"""Main entry point for the A-share stock monitoring system.
+
+Three modes (``--mode``):
+
+- ``select``  : coarse-filter the full-market snapshot, enrich each surviving
+  stock with 20-day history, run ``screen_stocks`` and dump candidates.json.
+- ``monitor`` : check the configured watchlist against the alert engine and
+  push triggered alerts to the WeChat Work webhook.
+- ``report``  : build the daily Markdown report, save it to disk and push it
+  to the webhook.
+
+Every step logs a timestamped Chinese message; any data source returning
+``None`` degrades gracefully instead of crashing.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import time
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+import numpy as np
+import pandas as pd
+
+from alert_engine import AlertEngine
+from config import AlertEngineConfig, DailyReportConfig, StockSelectorConfig
+from daily_report import generate_daily_report
+from data_fetcher import (
+    get_all_spot_data,
+    get_market_summary,
+    get_sector_map,
+    get_sector_rank,
+    get_stock_history,
+)
+from notifier import send_daily_report, send_wechat_alert
+from stock_selector import screen_stocks
+
+# Mirror of config.json, used when the file is missing or unreadable.
+DEFAULT_CONFIG: Dict[str, Any] = {
+    "watchlist": ["000001", "600519", "000858"],
+    "thresholds": {
+        "change_pct": 5.0,
+        "volume_surge_ratio": 3.0,
+        "rsi_lower": 40,
+        "rsi_upper": 70,
+        "pe_lower": 0,
+        "pe_upper": 100,
+        "min_volume_5d": 100_000_000,
+        "max_change_20d": 0.5,
+        "max_alerts_per_stock_per_day": 2,
+    },
+    "webhook_url": "",
+    "schedule": {
+        "select_time": "09:00",
+        "report_time": "15:30",
+        "monitor_interval_minutes": 5,
+    },
+}
+
+HISTORY_DELAY_SECONDS = 0.3
+"""Pause between per-stock history calls to avoid rate limiting."""
+
+
+# ---------------------------------------------------------------------------
+# Logging / config helpers
+# ---------------------------------------------------------------------------
+def log(msg: str) -> None:
+    """Print a timestamped log line."""
+    print(f"[{datetime.now():%H:%M:%S}] {msg}", flush=True)
+
+
+def load_config(path: str) -> Dict[str, Any]:
+    """Load config.json; fall back to defaults with a warning on failure."""
+    cfg_path = Path(path)
+    if not cfg_path.exists():
+        log(f"警告：配置文件 {path} 不存在，使用默认配置")
+        return dict(DEFAULT_CONFIG)
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        log(f"警告：配置文件 {path} 读取失败（{exc}），使用默认配置")
+        return dict(DEFAULT_CONFIG)
+    # Fill any missing top-level keys from defaults so downstream code can
+    # rely on their presence.
+    merged = dict(DEFAULT_CONFIG)
+    merged.update(cfg)
+    merged["thresholds"] = {**DEFAULT_CONFIG["thresholds"], **cfg.get("thresholds", {})}
+    log(f"已加载配置文件 {path}")
+    return merged
+
+
+def build_selector_config(th: Dict[str, Any]) -> StockSelectorConfig:
+    """Map config.json ``thresholds`` onto a StockSelectorConfig."""
+    return StockSelectorConfig(
+        min_volume_5d=float(th.get("min_volume_5d", 100_000_000)),
+        rsi_lower=float(th.get("rsi_lower", 40)),
+        rsi_upper=float(th.get("rsi_upper", 70)),
+        pe_lower=float(th.get("pe_lower", 0)),
+        pe_upper=float(th.get("pe_upper", 100)),
+        max_change_20d=float(th.get("max_change_20d", 0.5)),
+    )
+
+
+def build_alert_config(th: Dict[str, Any]) -> AlertEngineConfig:
+    """Map config.json ``thresholds`` onto an AlertEngineConfig."""
+    return AlertEngineConfig(
+        change_pct_threshold=float(th.get("change_pct", 5.0)),
+        volume_surge_ratio=float(th.get("volume_surge_ratio", 3.0)),
+        max_alerts_per_stock_per_day=int(th.get("max_alerts_per_stock_per_day", 2)),
+    )
+
+
+def _notify_result(ok: bool, what: str) -> None:
+    """Log the webhook push outcome; placeholder-URL failures are expected."""
+    if ok:
+        log(f"{what}已推送至企业微信")
+    else:
+        log(f"{what}推送失败（webhook 为占位符时属预期，不影响主流程）")
+
+
+# ---------------------------------------------------------------------------
+# Mode: select
+# ---------------------------------------------------------------------------
+def coarse_filter(
+    spot: pd.DataFrame, th: Dict[str, Any], max_stocks: int
+) -> pd.DataFrame:
+    """Narrow the full-market snapshot to at most *max_stocks* rows.
+
+    Filters by the configured PE range when PE data exists, keeps rows whose
+    PE is NaN (data source may simply lack PE), then sorts by turnover and
+    keeps the top N.
+    """
+    df = spot.copy()
+    df["turnover"] = pd.to_numeric(df.get("turnover"), errors="coerce")
+    df["pe"] = pd.to_numeric(df.get("pe"), errors="coerce")
+    if df["pe"].notna().any():
+        pe_lo, pe_hi = float(th.get("pe_lower", 0)), float(th.get("pe_upper", 100))
+        in_range = df["pe"].isna() | ((df["pe"] > pe_lo) & (df["pe"] < pe_hi))
+        df = df.loc[in_range]
+    else:
+        log("快照不含 PE 数据，粗筛阶段跳过 PE 过滤")
+    df = df.sort_values("turnover", ascending=False, na_position="last")
+    return df.head(max_stocks)
+
+
+def build_screen_row(spot_row: pd.Series, hist: pd.DataFrame) -> Optional[dict]:
+    """Assemble one ``screen_stocks`` input row from snapshot + history.
+
+    Returns ``None`` when the history frame is unusable.
+    """
+    try:
+        last = hist.iloc[-1]
+        prev = hist.iloc[-2] if len(hist) > 1 else last
+        first_close = float(hist.iloc[0]["close"])
+        last_close = float(last["close"])
+        sector = spot_row.get("sector")
+        return {
+            "code": str(spot_row["code"]),
+            "name": str(spot_row.get("name", "")),
+            "close": last_close,
+            "ma20": float(last["ma20"]),
+            # 5-day average turnover in RMB (matches config semantics).
+            "volume_5d": float(hist["turnover"].tail(5).mean()),
+            "rsi14": float(last["rsi14"]),
+            "macd_hist": float(last["macd_hist"]),
+            "pe": float(spot_row["pe"]) if pd.notna(spot_row.get("pe")) else np.nan,
+            "high_20d": float(hist["high"].max()),
+            "low_20d": float(hist["low"].min()),
+            "change_20d": (last_close / first_close - 1.0) if first_close else 0.0,
+            "sector": str(sector) if pd.notna(sector) else "unknown",
+            "has_bad_news": False,  # no news data source available
+            # Optional scoring columns.
+            "volume_today": (
+                float(spot_row["volume"]) if pd.notna(spot_row.get("volume")) else np.nan
+            ),
+            "macd_hist_prev": float(prev["macd_hist"]),
+        }
+    except (KeyError, TypeError, ValueError) as exc:
+        log(f"组装 {spot_row.get('code')} 筛选数据失败：{exc}")
+        return None
+
+
+def run_select(cfg: Dict[str, Any], max_stocks: int) -> None:
+    """Run the stock screening pipeline and write candidates.json."""
+    selector_cfg = build_selector_config(cfg["thresholds"])
+
+    log("开始获取全市场实时行情...")
+    spot = get_all_spot_data()
+    if spot is None or spot.empty:
+        log("获取行情失败，选股流程中止")
+        return
+    log(f"获取到 {len(spot)} 只股票快照")
+
+    pool = coarse_filter(spot, cfg["thresholds"], max_stocks)
+    log(f"粗筛后剩余 {len(pool)} 只（上限 {max_stocks}），开始逐只拉取历史数据...")
+
+    # 行业板块数据（同花顺）：任一环节失败都降级为 unknown / None，不影响主流程。
+    log("开始获取行业板块数据（同花顺）...")
+    sector_map = get_sector_map()
+    if sector_map:
+        pool = pool.copy()
+        pool["sector"] = pool["code"].astype(str).map(sector_map).fillna("unknown")
+        n_known = int((pool["sector"] != "unknown").sum())
+        log(f"板块映射完成：{n_known}/{len(pool)} 只股票匹配到行业板块")
+    else:
+        log("行业板块映射不可用，sector 统一按 unknown 处理")
+    sector_rank = get_sector_rank()
+    if sector_rank:
+        log(f"行业板块排名：榜首 {sector_rank[0]}，共 {len(sector_rank)} 个板块")
+    else:
+        log("行业板块排名不可用，板块加分项跳过")
+
+    rows: List[dict] = []
+    total = len(pool)
+    for i, (_, spot_row) in enumerate(pool.iterrows(), 1):
+        code = str(spot_row["code"])
+        hist = get_stock_history(code, days=20)
+        if hist is None or hist.empty:
+            log(f"({i}/{total}) {code} 历史数据获取失败，跳过")
+        else:
+            row = build_screen_row(spot_row, hist)
+            if row is not None:
+                rows.append(row)
+            else:
+                log(f"({i}/{total}) {code} 数据组装失败，跳过")
+        time.sleep(HISTORY_DELAY_SECONDS)
+
+    log(f"成功组装 {len(rows)}/{total} 只股票数据，开始执行筛选...")
+    out_path = Path("candidates.json")
+    if not rows:
+        out_path.write_text("[]", encoding="utf-8")
+        log("无可用数据，已写入空的 candidates.json")
+        return
+
+    df = pd.DataFrame(rows)
+    # When the source lacks PE entirely (e.g. Sina fallback), neutralize the
+    # PE filter with the configured range midpoint so screening can proceed.
+    if df["pe"].isna().any():
+        mid = (selector_cfg.pe_lower + selector_cfg.pe_upper) / 2.0
+        n_missing = int(df["pe"].isna().sum())
+        log(f"警告：{n_missing} 只股票缺少 PE 数据，已按区间中值 {mid} 填充"
+            "（相当于 PE 项不参与过滤）")
+        df["pe"] = df["pe"].fillna(mid)
+
+    result = screen_stocks(df, sector_rank=sector_rank, top_n=20, config=selector_cfg)
+    result.to_json(out_path, orient="records", force_ascii=False, indent=2)
+    log(f"筛选完成，入选 {len(result)} 只，已保存至 {out_path}")
+    if not result.empty:
+        preview = result[["code", "name", "close", "score"]].head(5)
+        for _, r in preview.iterrows():
+            log(f"  入选：{r['code']} {r['name']} 收盘 {r['close']:.2f} 得分 {r['score']}")
+
+
+# ---------------------------------------------------------------------------
+# Mode: monitor
+# ---------------------------------------------------------------------------
+def run_monitor(cfg: Dict[str, Any]) -> None:
+    """Check the watchlist for abnormal moves and push alerts."""
+    alert_cfg = build_alert_config(cfg["thresholds"])
+    watchlist = [str(c) for c in cfg.get("watchlist", [])]
+    if not watchlist:
+        log("自选股列表为空，监控流程中止")
+        return
+
+    log(f"开始获取行情，监控自选股：{', '.join(watchlist)}")
+    spot = get_all_spot_data()
+    if spot is None or spot.empty:
+        log("获取行情失败，监控流程中止")
+        return
+    spot["code"] = spot["code"].astype(str)
+    sub = spot.loc[spot["code"].isin(watchlist)]
+    missing = sorted(set(watchlist) - set(sub["code"]))
+    for code in missing:
+        log(f"警告：自选股 {code} 不在快照中，跳过")
+    if sub.empty:
+        log("快照中没有匹配的自选股，监控流程中止")
+        return
+
+    log(f"匹配到 {len(sub)} 只自选股，开始拉取历史数据补全指标...")
+    rows: List[dict] = []
+    for _, srow in sub.iterrows():
+        code = str(srow["code"])
+        hist = get_stock_history(code, days=20)
+        if hist is None or hist.empty:
+            log(f"{code} 历史数据获取失败，跳过")
+            continue
+        try:
+            rows.append({
+                "code": code,
+                "name": str(srow.get("name", "")),
+                "price": float(srow["price"]),
+                "change_pct": float(srow["change_pct"]),
+                "volume": float(srow["volume"]),
+                # 5-day average VOLUME (shares) to compare against today's volume.
+                "volume_5d_avg": float(hist["volume"].tail(5).mean()),
+                "high_20d": float(hist["high"].max()),
+                "low_20d": float(hist["low"].min()),
+            })
+        except (KeyError, TypeError, ValueError) as exc:
+            log(f"{code} 数据组装失败，跳过：{exc}")
+        time.sleep(HISTORY_DELAY_SECONDS)
+
+    if not rows:
+        log("无可用自选股数据，监控流程结束")
+        return
+
+    engine = AlertEngine(config=alert_cfg)
+    alerts = engine.process_alerts(pd.DataFrame(rows))
+    if not alerts:
+        log("自选股无异动")
+        return
+    log(f"检测到 {len(alerts)} 条异动：")
+    for a in alerts:
+        log(f"  [{a['level']}] {a['code']} {a['name']} {a['reason']}")
+    ok = send_wechat_alert(alerts, cfg.get("webhook_url", ""))
+    _notify_result(ok, "异动提醒")
+
+
+# ---------------------------------------------------------------------------
+# Mode: report
+# ---------------------------------------------------------------------------
+def run_report(cfg: Dict[str, Any]) -> None:
+    """Generate, print, save and push the daily Markdown report."""
+    report_cfg = DailyReportConfig()
+
+    log("开始获取大盘概况...")
+    market = get_market_summary()
+    if market is None:
+        log("大盘概况获取失败，使用占位数据继续生成报告")
+        market = {
+            "index_name": "上证指数",
+            "index_points": 0.0,
+            "index_change_pct": 0.0,
+            "total_turnover": 0.0,
+            "advance_count": 0,
+            "decline_count": 0,
+        }
+
+    log("开始获取自选股当日表现...")
+    watch_cols = ["code", "name", "price", "change_pct"]
+    watch_df = pd.DataFrame(columns=watch_cols)
+    watchlist = [str(c) for c in cfg.get("watchlist", [])]
+    spot = get_all_spot_data()
+    if spot is None or spot.empty:
+        log("获取行情失败，自选股表现按空表处理")
+    else:
+        spot["code"] = spot["code"].astype(str)
+        watch_df = spot.loc[spot["code"].isin(watchlist), watch_cols].reset_index(drop=True)
+        log(f"自选股当日表现共 {len(watch_df)} 条")
+
+    cand_path = Path("candidates.json")
+    if cand_path.exists():
+        try:
+            # json.load keeps codes as strings; pd.read_json would coerce
+            # numeric-looking codes to int and drop leading zeros.
+            candidates_df = pd.DataFrame(json.loads(cand_path.read_text(encoding="utf-8")))
+            log(f"已读取 {cand_path}，候选股 {len(candidates_df)} 只")
+        except (json.JSONDecodeError, OSError) as exc:
+            log(f"警告：{cand_path} 解析失败（{exc}），按空表处理")
+            candidates_df = pd.DataFrame()
+    else:
+        log(f"{cand_path} 不存在，候选股按空表处理")
+        candidates_df = pd.DataFrame()
+
+    log("开始生成收盘日报...")
+    report_md = generate_daily_report(
+        market, watch_df, [], candidates_df, config=report_cfg
+    )
+    print(report_md)
+
+    out_path = Path(f"report_{date.today().isoformat()}.md")
+    out_path.write_text(report_md, encoding="utf-8")
+    log(f"日报已保存至 {out_path}")
+
+    ok = send_daily_report(report_md, cfg.get("webhook_url", ""))
+    _notify_result(ok, "收盘日报")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+def main() -> None:
+    parser = argparse.ArgumentParser(description="A股监控系统主入口")
+    parser.add_argument(
+        "--mode",
+        choices=["select", "monitor", "report"],
+        required=True,
+        help="运行模式：select=选股 / monitor=自选股异动监控 / report=收盘日报",
+    )
+    parser.add_argument("--config", default="config.json", help="配置文件路径")
+    parser.add_argument(
+        "--max-stocks",
+        type=int,
+        default=50,
+        help="select 模式粗筛后拉取历史数据的股票上限（默认 50）",
+    )
+    args = parser.parse_args()
+
+    cfg = load_config(args.config)
+    log(f"启动模式：{args.mode}")
+    if args.mode == "select":
+        run_select(cfg, args.max_stocks)
+    elif args.mode == "monitor":
+        run_monitor(cfg)
+    else:
+        run_report(cfg)
+    log("流程结束")
+
+
+if __name__ == "__main__":
+    main()

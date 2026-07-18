@@ -1,0 +1,20 @@
+{
+  "watchlist": ["600519", "300750", "000001", "002594", "600036"],
+  "thresholds": {
+    "change_pct": 5.0,
+    "volume_surge_ratio": 3.0,
+    "rsi_lower": 40,
+    "rsi_upper": 70,
+    "pe_lower": 0,
+    "pe_upper": 100,
+    "min_volume_5d": 100000000,
+    "max_change_20d": 0.5,
+    "max_alerts_per_stock_per_day": 2
+  },
+  "webhook_url": "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxxxxxx",
+  "schedule": {
+    "select_time": "09:25",
+    "report_time": "15:05",
+    "monitor_interval_minutes": 3
+  }
+}
