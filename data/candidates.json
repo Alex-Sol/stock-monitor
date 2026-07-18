@@ -1,24 +1,5 @@
 [
   {
-    "code": "002594",
-    "name": "比亚迪",
-    "close": 93.47,
-    "ma20": 86.1665,
-    "volume_5d": 5089477768.6,
-    "rsi14": 59.4481368458,
-    "macd_hist": 2.8413300571,
-    "pe": 50.0,
-    "high_20d": 95.95,
-    "low_20d": 77.6,
-    "change_20d": 0.067130951,
-    "sector": "汽车整车",
-    "has_bad_news": false,
-    "volume_today": 68734582.0,
-    "macd_hist_prev": 2.8285140459,
-    "score": 2,
-    "reason": "技术面突破，成交量放大，符合选股标准"
-  },
-  {
     "code": "600900",
     "name": "XD长江电",
     "close": 27.99,
@@ -34,7 +15,7 @@
     "has_bad_news": false,
     "volume_today": 242860129.0,
     "macd_hist_prev": 0.3279740818,
-    "score": 2,
+    "score": 3,
     "reason": "技术面突破，成交量放大，符合选股标准"
   },
   {
@@ -53,6 +34,25 @@
     "has_bad_news": false,
     "volume_today": 5841730.0,
     "macd_hist_prev": 21.5158901654,
+    "score": 2,
+    "reason": "技术面突破，成交量放大，符合选股标准"
+  },
+  {
+    "code": "002594",
+    "name": "比亚迪",
+    "close": 93.47,
+    "ma20": 86.1665,
+    "volume_5d": 5089477768.6,
+    "rsi14": 59.4481368458,
+    "macd_hist": 2.8413300571,
+    "pe": 50.0,
+    "high_20d": 95.95,
+    "low_20d": 77.6,
+    "change_20d": 0.067130951,
+    "sector": "汽车整车",
+    "has_bad_news": false,
+    "volume_today": 68734582.0,
+    "macd_hist_prev": 2.8285140459,
     "score": 2,
     "reason": "技术面突破，成交量放大，符合选股标准"
   },
