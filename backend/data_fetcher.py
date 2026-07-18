@@ -304,19 +304,14 @@ def _fetch_index_row(symbol: str) -> Optional[dict]:
     return None
 
 
-def get_market_summary() -> Optional[dict]:
-    """Build the headline market summary consumed by the daily report.
+def get_market_summary() -> Optional[list]:
+    """Build the market summary for all major indices.
 
-    Queries 上证指数 (sh000001), 深证成指 (sz399001) and 创业板指 (sz399006)
-    and returns a dict with exactly these keys:
+    Queries 上证指数 (sh000001), 深证成指 (sz399001), 创业板指 (sz399006),
+    沪深300 (sh000300), 科创50 (sh000688) and returns a list of dicts.
 
-    - ``index_name``: name of the primary index (``"上证指数"``)
-    - ``index_points``: its latest close
-    - ``index_change_pct``: its latest daily change in percent
-    - ``total_turnover``: SH+SZ index turnover approximation (RMB), 0.0 if
-      unavailable
-    - ``advance_count`` / ``decline_count``: market breadth figures, 0 when
-      the data source cannot be reached
+    Also includes total_turnover, advance_count and decline_count in the
+    first (primary) index dict for backward compatibility.
 
     Returns ``None`` only when even the primary index cannot be fetched.
     """
@@ -324,20 +319,32 @@ def get_market_summary() -> Optional[dict]:
         print("获取大盘概况失败：akshare 未安装")
         return None
     try:
-        sh = _fetch_index_row("sh000001")
-        sz = _fetch_index_row("sz399001")
-        cyb = _fetch_index_row("sz399006")
-        if sh is None and sz is None and cyb is None:
-            print("获取大盘概况失败：三大指数均无数据")
+        indices = {
+            "sh000001": "上证指数",
+            "sz399001": "深证成指",
+            "sz399006": "创业板指",
+            "sh000300": "沪深300",
+            "sh000688": "科创50",
+        }
+        rows = []
+        for code, name in indices.items():
+            row = _fetch_index_row(code)
+            if row:
+                rows.append({
+                    "name": name,
+                    "code": code,
+                    "price": row["points"],
+                    "change_pct": row["change_pct"],
+                    "change": row.get("change", None),
+                })
+
+        if not rows:
+            print("获取大盘概况失败：所有指数均无数据")
             return None
 
-        primary = sh or sz or cyb
-        name_map = {"sh": "上证指数", "sz": "深证成指", "cyb": "创业板指"}
-        index_name = (
-            "上证指数" if sh is not None else name_map["sz" if sz is not None else "cyb"]
-        )
-        # Approximate the whole-market turnover with SH + SZ index amounts;
-        # the ChiNext amount overlaps 深证成指 so it is not added again.
+        # Approximate the whole-market turnover with SH + SZ index amounts
+        sh = _fetch_index_row("sh000001")
+        sz = _fetch_index_row("sz399001")
         total_turnover = (sh["amount"] if sh else 0.0) + (sz["amount"] if sz else 0.0)
 
         advance_count = 0
@@ -351,14 +358,12 @@ def get_market_summary() -> Optional[dict]:
         except Exception as exc:  # noqa: BLE001
             print(f"涨跌家数获取失败，填 0：{exc}")
 
-        return {
-            "index_name": index_name,
-            "index_points": primary["points"],
-            "index_change_pct": primary["change_pct"],
-            "total_turnover": float(total_turnover),
-            "advance_count": advance_count,
-            "decline_count": decline_count,
-        }
+        # Put market-wide stats into the primary (first) index for compat
+        rows[0]["total_turnover"] = float(total_turnover)
+        rows[0]["advance_count"] = advance_count
+        rows[0]["decline_count"] = decline_count
+
+        return rows
     except Exception as exc:  # noqa: BLE001
         print(f"获取大盘概况失败：{exc}")
         return None
