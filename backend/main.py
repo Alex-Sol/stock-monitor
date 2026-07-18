@@ -477,6 +477,9 @@ def run_report(cfg: Dict[str, Any]) -> None:
     log("开始生成收盘日报...")
     llm_cfg = build_llm_config(cfg)
     report_md: Optional[str] = None
+    report_date = cfg.get("report_date", date.today().isoformat())
+    log(f"日报日期: {report_date}")
+
     llm_preview: Optional[Dict[str, Any]] = None
     if llm_cfg.enabled:
         log("已配置走大模型，调用 LLM 生成日报...")
@@ -487,7 +490,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
             recent_alerts,
             candidates_df.to_dict(orient="records") if not candidates_df.empty else [],
             llm_cfg,
-            report_date=date.today().isoformat(),
+            report_date=report_date,
         )
         if llm_preview is not None:
             report_md = llm_preview["markdown"]
@@ -496,7 +499,8 @@ def run_report(cfg: Dict[str, Any]) -> None:
             log("LLM 日报生成失败，回退到规则模板")
     if report_md is None:
         report_md = generate_daily_report(
-            market, watch_df, [], candidates_df, config=report_cfg
+            market, watch_df, [], candidates_df, config=report_cfg,
+            report_date=date.fromisoformat(report_date) if isinstance(report_date, str) else report_date
         )
     print(report_md)
 
@@ -504,13 +508,13 @@ def run_report(cfg: Dict[str, Any]) -> None:
     data_dir.mkdir(parents=True, exist_ok=True)
 
     # 保存 Markdown 日报
-    out_path = data_dir / f"report_{date.today().isoformat()}.md"
+    out_path = data_dir / f"report_{report_date}.md"
     out_path.write_text(report_md, encoding="utf-8")
     log(f"日报已保存至 {out_path}")
 
     # 保存结构化 daily_report.json
     daily_report_json = {
-        "date": date.today().isoformat(),
+        "date": report_date,
         "market": market,
         "watchlist": watch_df.to_dict(orient="records") if not watch_df.empty else [],
         "alerts": [],
