@@ -238,6 +238,9 @@ function renderCandidates(data) {
   const showAll = el.dataset.expanded === 'true';
   const displayList = showAll ? fullList : fullList.slice(0, 5);
 
+  // 展开时限制高度，避免推挤下方内容
+  el.className = showAll ? 'space-y-2 max-h-96 overflow-y-auto pr-1' : 'space-y-2';
+
   let html = displayList.map((s, i) => {
     const name = pick(s, ['name', 'stock_name'], '');
     const code = pick(s, ['code', 'symbol', 'stock_code'], '');
