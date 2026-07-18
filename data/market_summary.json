@@ -1,8 +1,20 @@
-{
-  "index_name": "上证指数",
-  "index_points": 3764.155,
-  "index_change_pct": -3.045992273361948,
-  "total_turnover": 0.0,
-  "advance_count": 405,
-  "decline_count": 4758
-}
+[
+  {
+    "name": "上证指数",
+    "price": 3764.16,
+    "change_pct": -3.05,
+    "change": -118.45
+  },
+  {
+    "name": "深证成指",
+    "price": 11265.80,
+    "change_pct": -2.18,
+    "change": -251.32
+  },
+  {
+    "name": "创业板指",
+    "price": 2156.32,
+    "change_pct": -1.92,
+    "change": -42.15
+  }
+]
