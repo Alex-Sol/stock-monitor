@@ -329,6 +329,16 @@ function renderDailyReport(data) {
   const title = pick(data, ['title', 'name'], '每日复盘');
   const summary = pick(data, ['summary', 'content', 'text'], '');
   const points = pickArray(data, ['highlights', 'points', 'sections']);
+  const markdown = pick(data, ['markdown', 'md', 'report'], '');
+
+  // 优先使用 LLM 生成的 title/summary/highlights；否则回退到 markdown 全文
+  if (!summary && !points.length && markdown) {
+    el.innerHTML = `
+      <div class="text-xs text-gray-500 mb-1">${esc(date)}</div>
+      <div class="font-semibold mb-2">${esc(title)}</div>
+      <div class="text-sm text-gray-300 leading-relaxed whitespace-pre-line">${esc(markdown)}</div>`;
+    return;
+  }
 
   el.innerHTML = `
     <div class="text-xs text-gray-500 mb-1">${esc(date)}</div>
