@@ -13,6 +13,9 @@
     <div class="max-w-6xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
       <h1 class="text-lg font-bold tracking-wide">📈 股票盯盘看板</h1>
       <div class="flex items-center gap-3 text-xs sm:text-sm text-gray-400">
+        <span id="data-date-badge" class="hidden inline-flex items-center gap-1 px-2 py-0.5 rounded bg-gray-800 text-gray-300">
+          <span>数据日期：</span><span id="data-date" class="font-mono">--</span>
+        </span>
         <span id="refresh-status" class="inline-flex items-center gap-1">
           <span class="w-2 h-2 rounded-full bg-gray-500" id="status-dot"></span>
           <span id="status-text">待刷新</span>
@@ -322,15 +325,40 @@ async function refreshAll() {
   );
 
   let failed = 0;
+  let dataDate = null;
+
   results.forEach((r, i) => {
     const [, render] = jobs[i];
     if (r.status === 'fulfilled') {
       try { render(r.value); } catch (e) { console.error('渲染失败', jobs[i][0], e); }
+      // 提取数据日期
+      if (!dataDate && r.value) {
+        const d = r.value.date || r.value[0]?.date || r.value[0]?.timestamp?.split('T')[0];
+        if (d) dataDate = d;
+      }
     } else {
       failed++;
       console.error('加载失败', jobs[i][0], r.reason);
     }
   });
+
+  // 更新数据日期显示
+  const dateBadge = document.getElementById('data-date-badge');
+  const dateEl = document.getElementById('data-date');
+  if (dataDate) {
+    dateEl.textContent = dataDate;
+    dateBadge.classList.remove('hidden');
+    const today = new Date().toISOString().split('T')[0];
+    if (dataDate !== today) {
+      dateBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 text-xs';
+      dateEl.title = `数据不是今天的（今天 ${today}），请注意时效性`;
+    } else {
+      dateBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded bg-green-500/20 text-green-400 text-xs';
+      dateEl.title = '数据为今日最新';
+    }
+  } else {
+    dateBadge.classList.add('hidden');
+  }
 
   const now = new Date();
   document.getElementById('last-updated').textContent = now.toLocaleTimeString('zh-CN');
