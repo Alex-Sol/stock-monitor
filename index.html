@@ -161,6 +161,11 @@ function emptyState(text) {
 
 /* ================= 渲染函数 ================= */
 
+function stockLink(name, code) {
+  if (!code) return esc(name);
+  return `<a href="https://stockpage.10jqka.com.cn/${esc(code)}/" target="_blank" rel="noopener" class="hover:text-blue-400 hover:underline">${esc(name)}</a>`;
+}
+
 function renderMarket(data) {
   let list = [];
   if (Array.isArray(data)) {
@@ -217,7 +222,7 @@ function renderWatchlist(data) {
     return `
       <tr class="border-b border-gray-800/60 last:border-0 hover:bg-gray-800/40">
         <td class="px-4 py-3">
-          <div class="font-medium">${esc(name)}</div>
+          <div class="font-medium">${stockLink(name, code)}</div>
           <div class="text-xs text-gray-500">${esc(code)}</div>
         </td>
         <td class="px-4 py-3 text-right font-mono ${c}">${fmtNum(price)}</td>
@@ -247,7 +252,7 @@ function renderCandidates(data) {
                     flex items-center justify-center text-xs font-bold">${i + 1}</div>
         <div class="min-w-0">
           <div class="text-sm font-medium">
-            ${esc(name)} <span class="text-xs text-gray-500 font-normal">${esc(code)}</span>
+            ${stockLink(name, code)} <span class="text-xs text-gray-500 font-normal">${esc(code)}</span>
             ${score !== null ? `<span class="ml-1 text-xs text-amber-400">评分 ${esc(score)}</span>` : ''}
           </div>
           ${reason ? `<div class="text-xs text-gray-400 mt-0.5 leading-relaxed">${esc(reason)}</div>` : ''}
@@ -288,7 +293,7 @@ function renderAlerts(data) {
         <div class="flex items-center gap-2 mb-1.5">
           <span class="shrink-0 text-xs text-gray-500 font-mono">${esc(time)}</span>
           <span class="inline-block text-xs px-1.5 py-0.5 rounded ${tc}">${esc(type.toUpperCase())}</span>
-          <span class="font-medium text-sm">${esc(stock)}</span>
+          <span class="font-medium text-sm">${stockLink(stock, code)}</span>
           ${code ? `<span class="text-xs text-gray-500">${esc(code)}</span>` : ''}
         </div>
         <div class="text-sm text-gray-300 mb-1">${esc(msg)}</div>
