@@ -432,7 +432,7 @@ def run_report(cfg: Dict[str, Any]) -> None:
 import subprocess
 
 def git_commit_push(repo_root: str) -> bool:
-    """自动将 data/ 目录的变更提交并推送到 GitHub。"""
+    """自动将 data/ 目录的变更提交并推送到 GitHub 的 data 分支。"""
     try:
         root = Path(repo_root).resolve()
         # 检查是否在 git 仓库内
@@ -456,6 +456,22 @@ def git_commit_push(repo_root: str) -> bool:
             return True
 
         log(f"data/ 目录有 {len(lines)} 个变更，开始 Git 提交...")
+
+        # 切换到 data 分支
+        r0 = subprocess.run(
+            ["git", "checkout", "data"],
+            cwd=str(root), capture_output=True, text=True, timeout=15
+        )
+        if r0.returncode != 0:
+            # data 分支不存在，创建它
+            r0b = subprocess.run(
+                ["git", "checkout", "-b", "data"],
+                cwd=str(root), capture_output=True, text=True, timeout=15
+            )
+            if r0b.returncode != 0:
+                log(f"切换到 data 分支失败：{r0.stderr}")
+                return False
+            log("已创建并切换到 data 分支")
 
         # git add data/
         r1 = subprocess.run(
@@ -484,16 +500,14 @@ def git_commit_push(repo_root: str) -> bool:
 
         # git pull --rebase 再 push，处理可能的远程更新
         r3 = subprocess.run(
-            ["git", "pull", "--rebase", "origin", "main"],
+            ["git", "pull", "--rebase", "origin", "data"],
             cwd=str(root), capture_output=True, text=True, timeout=30
         )
         if r3.returncode != 0:
-            # 可能没有上游分支，或者是真正的冲突
             if "no upstream branch" in r3.stderr.lower() or "No such file or directory" in r3.stderr:
                 log("无上游分支，直接 push")
             else:
                 log(f"git pull --rebase 失败：{r3.stderr}")
-                # 尝试回退 rebase
                 subprocess.run(
                     ["git", "rebase", "--abort"],
                     cwd=str(root), capture_output=True, text=True, timeout=10
@@ -501,14 +515,20 @@ def git_commit_push(repo_root: str) -> bool:
                 return False
 
         r4 = subprocess.run(
-            ["git", "push", "origin", "main"],
+            ["git", "push", "origin", "data"],
             cwd=str(root), capture_output=True, text=True, timeout=30
         )
         if r4.returncode != 0:
             log(f"git push 失败：{r4.stderr}")
             return False
 
-        log("Git 推送成功")
+        log("Git 推送到 data 分支成功")
+
+        # 切回 main 分支（避免后续操作在 data 分支上）
+        subprocess.run(
+            ["git", "checkout", "main"],
+            cwd=str(root), capture_output=True, text=True, timeout=10
+        )
         return True
 
     except subprocess.TimeoutExpired:
