@@ -1,1 +1,13 @@
-{}
+{
+  "date": "2026-07-17",
+  "index_name": "上证指数",
+  "index_points": 3764.16,
+  "index_change_pct": -3.05,
+  "total_turnover": 8923.5,
+  "advance_count": 423,
+  "decline_count": 4892,
+  "shenzhen_index": 13706.88,
+  "shenzhen_change_pct": -5.40,
+  "chinext_index": 3428.63,
+  "chinext_change_pct": -7.15
+}

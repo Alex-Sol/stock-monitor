@@ -1,1 +1,32 @@
-{}
+{
+  "date": "2026-07-17",
+  "market": {
+    "index_name": "上证指数",
+    "index_points": 3764.16,
+    "index_change_pct": -3.05,
+    "total_turnover": 8923.5,
+    "advance_count": 423,
+    "decline_count": 4892
+  },
+  "watchlist": [
+    {"code": "600519", "name": "贵州茅台", "price": 1253.00, "change_pct": -0.48},
+    {"code": "300750", "name": "宁德时代", "price": 360.00, "change_pct": -1.69},
+    {"code": "000001", "name": "平安银行", "price": 10.78, "change_pct": 0.09},
+    {"code": "002594", "name": "比亚迪", "price": 93.47, "change_pct": -0.71},
+    {"code": "600036", "name": "招商银行", "price": 38.02, "change_pct": 0.93}
+  ],
+  "alerts": [
+    {"code": "300750", "name": "宁德时代", "reason": "跌破20日均线，跌幅超5%", "level": "warning"},
+    {"code": "002594", "name": "比亚迪", "reason": "成交量突增", "level": "info"},
+    {"code": "600036", "name": "招商银行", "reason": "突破近20日高点", "level": "info"}
+  ],
+  "candidates": [
+    {"code": "600900", "name": "XD长江电", "close": 27.99, "score": 58},
+    {"code": "600519", "name": "贵州茅台", "close": 1253.00, "score": 52},
+    {"code": "002594", "name": "比亚迪", "close": 93.47, "score": 49},
+    {"code": "601899", "name": "紫金矿业", "close": 28.36, "score": 42},
+    {"code": "000977", "name": "浪潮信息", "close": 77.40, "score": 38}
+  ],
+  "sentiment": "Cautious",
+  "summary": "市场今日大幅下跌，创业板指跌幅超7%，全市场近4900只股票下跌。银行板块相对抗跌，宁德时代领跌创业板。建议控制仓位，关注明日早盘修复力度。"
+}
