@@ -670,9 +670,17 @@ def main() -> None:
         action="store_true",
         help="跳过 Git 自动提交",
     )
+    parser.add_argument(
+        "--date",
+        help="手动指定日报日期（格式 YYYY-MM-DD），不传则使用当天日期",
+    )
     args = parser.parse_args()
 
     cfg = load_config(args.config)
+    # 命令行 --date 优先，其次 config 里的 report_date，最后当天日期
+    report_date = args.date or cfg.get("report_date") or date.today().isoformat()
+    cfg["report_date"] = report_date
+    log(f"日报日期: {report_date}")
     log(f"启动模式：{args.mode}")
     if args.mode == "select":
         run_select(cfg, args.max_stocks)
