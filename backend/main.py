@@ -369,8 +369,12 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
     data_dir = resolve_data_dir(cfg)
     data_dir.mkdir(parents=True, exist_ok=True)
     watchlist_path = data_dir / "watchlist.json"
+    # 添加更新时间戳
+    update_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+    for r in rows:
+        r["update_time"] = update_time
     watchlist_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
-    log(f"已保存自选股数据到 {watchlist_path}")
+    log(f"已保存自选股数据到 {watchlist_path}，更新时间 {update_time}")
 
     alerts = None
     llm_cfg = build_llm_config(cfg)
