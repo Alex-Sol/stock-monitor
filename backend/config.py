@@ -141,6 +141,33 @@ class NotificationConfig:
 
 
 @dataclass
+class LLMConfig:
+    """LLM (OpenAI-compatible) settings for AI-generated outputs.
+
+    When ``enabled`` is False (default) every subsystem uses the existing
+    rule-based code path.  When True, select/monitor/report call the
+    configured model instead, falling back to the rules on any failure."""
+
+    enabled: bool = False
+    """Master switch: False = rule-based code, True = LLM."""
+
+    api_key: str = ""
+    """API key for the LLM provider (e.g. Kimi/Moonshot)."""
+
+    base_url: str = "https://api.kimi.com/coding/v1"
+    """OpenAI-compatible API base URL (no trailing slash)."""
+
+    model: str = "kimi-k2.6"
+    """Model name sent in the chat-completions request."""
+
+    timeout: int = 60
+    """HTTP timeout in seconds for LLM calls."""
+
+    temperature: float = 0.6
+    """Sampling temperature.  Note: kimi-k2.6 currently only accepts 0.6."""
+
+
+@dataclass
 class SystemConfig:
     """Top-level configuration aggregating every subsystem's settings."""
 
@@ -159,6 +186,9 @@ class SystemConfig:
     notification: NotificationConfig = field(default_factory=NotificationConfig)
     """Notification channel URLs."""
 
+    llm: LLMConfig = field(default_factory=LLMConfig)
+    """LLM switch and credentials for AI-generated outputs."""
+
     timezone: str = "Asia/Shanghai"
     """Default timezone for timestamp generation."""
 
@@ -175,5 +205,6 @@ __all__ = [
     "AlertEngineConfig",
     "DailyReportConfig",
     "NotificationConfig",
+    "LLMConfig",
     "SystemConfig",
 ]

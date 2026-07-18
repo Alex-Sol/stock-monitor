@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 
 from alert_engine import AlertEngine
-from config import AlertEngineConfig, DailyReportConfig, StockSelectorConfig
+from config import AlertEngineConfig, DailyReportConfig, LLMConfig, StockSelectorConfig
 from daily_report import generate_daily_report
 from data_fetcher import (
     get_all_spot_data,
@@ -34,6 +34,11 @@ from data_fetcher import (
     get_sector_map,
     get_sector_rank,
     get_stock_history,
+)
+from llm_client import (
+    generate_alerts as llm_generate_alerts,
+    generate_report as llm_generate_report,
+    select_stocks as llm_select_stocks,
 )
 from notifier import send_daily_report, send_wechat_alert
 from stock_selector import screen_stocks
@@ -53,6 +58,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "max_alerts_per_stock_per_day": 2,
     },
     "webhook_url": "",
+    "llm": {
+        "enabled": False,
+        "api_key": "",
+        "base_url": "https://api.kimi.com/coding/v1",
+        "model": "kimi-k2.6",
+        "timeout": 60,
+        "temperature": 0.6,
+    },
     "schedule": {
         "select_time": "09:00",
         "report_time": "15:30",
@@ -88,6 +101,9 @@ def load_config(path: str) -> Dict[str, Any]:
     merged = dict(DEFAULT_CONFIG)
     merged.update(cfg)
     merged["thresholds"] = {**DEFAULT_CONFIG["thresholds"], **cfg.get("thresholds", {})}
+    llm_section = cfg.get("llm", {})
+    if isinstance(llm_section, dict):
+        merged["llm"] = {**DEFAULT_CONFIG["llm"], **llm_section}
     log(f"已加载配置文件 {path}")
     return merged
 
@@ -110,6 +126,21 @@ def build_alert_config(th: Dict[str, Any]) -> AlertEngineConfig:
         change_pct_threshold=float(th.get("change_pct", 5.0)),
         volume_surge_ratio=float(th.get("volume_surge_ratio", 3.0)),
         max_alerts_per_stock_per_day=int(th.get("max_alerts_per_stock_per_day", 2)),
+    )
+
+
+def build_llm_config(cfg: Dict[str, Any]) -> LLMConfig:
+    """Map config.json ``llm`` section onto an LLMConfig."""
+    llm = cfg.get("llm", {})
+    if not isinstance(llm, dict):
+        llm = {}
+    return LLMConfig(
+        enabled=bool(llm.get("enabled", False)),
+        api_key=str(llm.get("api_key", "")),
+        base_url=str(llm.get("base_url", "https://api.kimi.com/coding/v1")),
+        model=str(llm.get("model", "kimi-k2.6")),
+        timeout=int(llm.get("timeout", 60)),
+        temperature=float(llm.get("temperature", 0.6)),
     )
 
 
@@ -247,7 +278,21 @@ def run_select(cfg: Dict[str, Any], max_stocks: int) -> None:
             "（相当于 PE 项不参与过滤）")
         df["pe"] = df["pe"].fillna(mid)
 
-    result = screen_stocks(df, sector_rank=sector_rank, top_n=20, config=selector_cfg)
+    result = None
+    llm_cfg = build_llm_config(cfg)
+    if llm_cfg.enabled:
+        log("已配置走大模型，调用 LLM 选股...")
+        picked = llm_select_stocks(
+            df.to_dict(orient="records"), llm_cfg, top_n=20,
+            sector_rank=sector_rank,
+        )
+        if picked is not None:
+            result = pd.DataFrame(picked)
+            log(f"LLM 选股完成，入选 {len(result)} 只（模型 {llm_cfg.model}）")
+        else:
+            log("LLM 选股失败，回退到规则选股")
+    if result is None:
+        result = screen_stocks(df, sector_rank=sector_rank, top_n=20, config=selector_cfg)
     result.to_json(out_path, orient="records", force_ascii=False, indent=2)
     log(f"筛选完成，入选 {len(result)} 只，已保存至 {out_path}")
     if not result.empty:
@@ -316,8 +361,18 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
     watchlist_path.write_text(json.dumps(rows, ensure_ascii=False, indent=2), encoding="utf-8")
     log(f"已保存自选股数据到 {watchlist_path}")
 
-    engine = AlertEngine(config=alert_cfg)
-    alerts = engine.process_alerts(pd.DataFrame(rows))
+    alerts = None
+    llm_cfg = build_llm_config(cfg)
+    if llm_cfg.enabled:
+        log("已配置走大模型，调用 LLM 识别异动...")
+        alerts = llm_generate_alerts(rows, llm_cfg)
+        if alerts is not None:
+            log(f"LLM 识别完成，{len(alerts)} 条异动（模型 {llm_cfg.model}）")
+        else:
+            log("LLM 识别失败，回退到规则引擎")
+    if alerts is None:
+        engine = AlertEngine(config=alert_cfg)
+        alerts = engine.process_alerts(pd.DataFrame(rows))
     if not alerts:
         log("自选股无异动")
         return
@@ -350,6 +405,21 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
 # ---------------------------------------------------------------------------
 # Mode: report
 # ---------------------------------------------------------------------------
+def _load_recent_alerts(cfg: Dict[str, Any], limit: int = 10) -> List[dict]:
+    """Read the most recent alerts from alerts.json (for the LLM report)."""
+    alerts_path = Path(cfg.get("data_output_dir", ".")) / "alerts.json"
+    if not alerts_path.exists():
+        return []
+    try:
+        data = json.loads(alerts_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        log(f"警告：{alerts_path} 解析失败（{exc}），按无预警处理")
+        return []
+    if not isinstance(data, list):
+        return []
+    return data[-limit:]
+
+
 def run_report(cfg: Dict[str, Any]) -> None:
     """Generate, print, save and push the daily Markdown report."""
     report_cfg = DailyReportConfig()
@@ -394,9 +464,29 @@ def run_report(cfg: Dict[str, Any]) -> None:
         candidates_df = pd.DataFrame()
 
     log("开始生成收盘日报...")
-    report_md = generate_daily_report(
-        market, watch_df, [], candidates_df, config=report_cfg
-    )
+    llm_cfg = build_llm_config(cfg)
+    report_md: Optional[str] = None
+    llm_preview: Optional[Dict[str, Any]] = None
+    if llm_cfg.enabled:
+        log("已配置走大模型，调用 LLM 生成日报...")
+        recent_alerts = _load_recent_alerts(cfg, limit=10)
+        llm_preview = llm_generate_report(
+            market,
+            watch_df.to_dict(orient="records") if not watch_df.empty else [],
+            recent_alerts,
+            candidates_df.to_dict(orient="records") if not candidates_df.empty else [],
+            llm_cfg,
+            report_date=date.today().isoformat(),
+        )
+        if llm_preview is not None:
+            report_md = llm_preview["markdown"]
+            log(f"LLM 日报生成完成（模型 {llm_cfg.model}）")
+        else:
+            log("LLM 日报生成失败，回退到规则模板")
+    if report_md is None:
+        report_md = generate_daily_report(
+            market, watch_df, [], candidates_df, config=report_cfg
+        )
     print(report_md)
 
     data_dir = Path(cfg.get("data_output_dir", "."))
@@ -415,6 +505,13 @@ def run_report(cfg: Dict[str, Any]) -> None:
         "alerts": [],
         "candidates": candidates_df.to_dict(orient="records") if not candidates_df.empty else [],
     }
+    if llm_preview is not None:
+        # 供前端「日报预览」展示的 LLM 摘要字段
+        daily_report_json.update({
+            "title": llm_preview["title"],
+            "summary": llm_preview["summary"],
+            "highlights": llm_preview["highlights"],
+        })
     report_json_path = data_dir / "daily_report.json"
     report_json_path.write_text(json.dumps(daily_report_json, ensure_ascii=False, indent=2), encoding="utf-8")
     log(f"结构化日报已保存至 {report_json_path}")
