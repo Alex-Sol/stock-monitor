@@ -1,38 +1,35 @@
 [
   {
-    "stock": "宁德时代",
-    "code": "300750",
-    "time": "10:15",
+    "time": "2026-07-17 14:35:22",
     "type": "warning",
-    "price": 360.0,
-    "change_pct": -5.2,
-    "volume_ratio": 1.19,
-    "message": "跌破20日均线，跌幅超5%",
-    "trigger": "价格 360.00 < MA20 371.50",
-    "date": "2026-07-16"
-  },
-  {
+    "message": "比亚迪涨超2%，成交量放大",
     "stock": "比亚迪",
     "code": "002594",
-    "time": "11:20",
-    "type": "info",
     "price": 93.47,
-    "change_pct": -4.8,
-    "volume_ratio": 2.87,
-    "message": "成交量突增，接近前5日均量3倍",
-    "trigger": "成交量 2.87x 前5日均量",
-    "date": "2026-07-16"
+    "change_pct": 2.18,
+    "volume_ratio": 2.1,
+    "trigger": "涨跌幅≥2%"
   },
   {
-    "stock": "招商银行",
-    "code": "600036",
-    "time": "14:05",
+    "time": "2026-07-17 10:22:15",
+    "type": "emergency",
+    "message": "贵州茅台跌破1260，注意风险",
+    "stock": "贵州茅台",
+    "code": "600519",
+    "price": 1253.0,
+    "change_pct": -0.48,
+    "volume_ratio": 0.9,
+    "trigger": "价格跌破支撑位"
+  },
+  {
+    "time": "2026-07-17 11:05:33",
     "type": "info",
-    "price": 38.02,
-    "change_pct": 3.5,
-    "volume_ratio": 1.11,
-    "message": "突破近20日高点",
-    "trigger": "价格 38.02 > 20日高点 38.00",
-    "date": "2026-07-16"
+    "message": "宁德时代放量上涨，突破200元关口",
+    "stock": "宁德时代",
+    "code": "300750",
+    "price": 198.5,
+    "change_pct": 1.25,
+    "volume_ratio": 1.8,
+    "trigger": "突破关键价位"
   }
 ]

@@ -8,50 +8,50 @@
     "volume_5d_avg": 6520000,
     "high_20d": 1269.33,
     "low_20d": 1151.01,
-    "date": "2026-07-16"
+    "tick_time": "15:30:01"
   },
   {
     "code": "300750",
     "name": "宁德时代",
-    "price": 360.0,
-    "change_pct": -1.69,
-    "volume": 15230000,
-    "volume_5d_avg": 12800000,
-    "high_20d": 385.5,
-    "low_20d": 342.0,
-    "date": "2026-07-16"
+    "price": 198.5,
+    "change_pct": 1.25,
+    "volume": 15200000,
+    "volume_5d_avg": 13800000,
+    "high_20d": 205.0,
+    "low_20d": 192.0,
+    "tick_time": "15:30:02"
   },
   {
     "code": "000001",
     "name": "平安银行",
-    "price": 10.78,
-    "change_pct": 0.09,
+    "price": 11.2,
+    "change_pct": -0.85,
     "volume": 42300000,
-    "volume_5d_avg": 38000000,
-    "high_20d": 11.25,
-    "low_20d": 10.45,
-    "date": "2026-07-16"
+    "volume_5d_avg": 48000000,
+    "high_20d": 11.85,
+    "low_20d": 10.95,
+    "tick_time": "15:30:01"
   },
   {
     "code": "002594",
     "name": "比亚迪",
     "price": 93.47,
-    "change_pct": -0.71,
-    "volume": 68734582,
-    "volume_5d_avg": 72000000,
-    "high_20d": 95.95,
-    "low_20d": 77.6,
-    "date": "2026-07-16"
+    "change_pct": 2.18,
+    "volume": 9850000,
+    "volume_5d_avg": 8200000,
+    "high_20d": 95.0,
+    "low_20d": 85.5,
+    "tick_time": "15:30:03"
   },
   {
     "code": "600036",
     "name": "招商银行",
-    "price": 38.02,
-    "change_pct": 0.93,
-    "volume": 28900000,
-    "volume_5d_avg": 26000000,
-    "high_20d": 38.85,
-    "low_20d": 36.2,
-    "date": "2026-07-16"
+    "price": 33.85,
+    "change_pct": 0.35,
+    "volume": 18500000,
+    "volume_5d_avg": 22000000,
+    "high_20d": 34.5,
+    "low_20d": 32.8,
+    "tick_time": "15:30:01"
   }
 ]
