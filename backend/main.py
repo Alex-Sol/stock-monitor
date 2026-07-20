@@ -315,8 +315,11 @@ def run_select(cfg: Dict[str, Any], max_stocks: int) -> None:
 # ---------------------------------------------------------------------------
 # Mode: monitor
 # ---------------------------------------------------------------------------
-def run_monitor(cfg: Dict[str, Any]) -> None:
-    """Check the watchlist for abnormal moves and push alerts."""
+def run_monitor(cfg: Dict[str, Any]) -> bool:
+    """Check the watchlist for abnormal moves and push alerts.
+
+    Returns True if any alerts were triggered, False otherwise.
+    """
     alert_cfg = build_alert_config(cfg["thresholds"])
     watchlist = [str(c) for c in cfg.get("watchlist", [])]
     if not watchlist:
@@ -387,7 +390,7 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
         alerts = engine.process_alerts(pd.DataFrame(rows))
     if not alerts:
         log("自选股无异动")
-        return
+        return False
     log(f"检测到 {len(alerts)} 条异动：")
     for a in alerts:
         log(f"  [{a['level']}] {a['code']} {a['name']} {a['reason']}")
@@ -412,6 +415,7 @@ def run_monitor(cfg: Dict[str, Any]) -> None:
 
     ok = send_wechat_alert(alerts, cfg)
     _notify_result(ok, "异动提醒")
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -545,31 +549,61 @@ def run_report(cfg: Dict[str, Any]) -> None:
 
 import subprocess
 
-def git_commit_push(repo_root: str) -> bool:
-    """自动将 data/ 目录的变更提交并推送到 GitHub 的 data 分支。"""
+def git_commit_push(repo_root: str, force: bool = False) -> bool:
+    """自动将 data/ 目录的变更提交并推送到 GitHub 的 data 分支。
+
+    Parameters
+    ----------
+    repo_root : str
+        仓库根目录。
+    force : bool
+        如果为 True，跳过 30 分钟时间检查，强制推送（用于触发预警时）。
+    """
     try:
         root = Path(repo_root).resolve()
-        # 检查是否在 git 仓库内
         if not (root / ".git").exists():
             log(f"Git 仓库未初始化，跳过自动提交：{root}")
             return False
 
-        # 检查是否有变更
-        result = subprocess.run(
-            ["git", "status", "--porcelain"],
+        data_dir = root / "data"
+        if not data_dir.exists() or not any(data_dir.iterdir()):
+            return True
+
+        # 检查是否超过 30 分钟未推送（保底机制）
+        marker = root / ".last_git_push"
+        should_push = force
+        if not should_push and marker.exists():
+            try:
+                last_push = float(marker.read_text().strip())
+                if datetime.now().timestamp() - last_push >= 1800:  # 30 分钟
+                    should_push = True
+                    log("距离上次 Git 推送已超过 30 分钟，执行保底同步")
+            except (ValueError, OSError):
+                should_push = True
+        elif not should_push:
+            should_push = True  # 首次运行，无 marker
+
+        # 保存当前分支
+        r_current = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(root), capture_output=True, text=True, timeout=10
+        )
+        if r_current.returncode != 0:
+            return False
+        current_branch = r_current.stdout.strip()
+
+        # 使用 git stash --all 捕获 data/ 下所有变更（包括被 .gitignore 忽略的）
+        r_stash = subprocess.run(
+            ["git", "stash", "push", "--all", "-m", "auto-data-update", "--", "data/"],
             cwd=str(root), capture_output=True, text=True, timeout=15
         )
-        if result.returncode != 0:
-            log(f"git status 失败：{result.stderr}")
-            return False
+        has_stash = "No local changes to save" not in (r_stash.stdout + r_stash.stderr)
 
-        # 过滤出 data/ 目录的变更
-        lines = [l for l in result.stdout.strip().splitlines() if "data/" in l]
-        if not lines:
+        if not has_stash and not should_push:
             log("data/ 目录无变更，跳过 Git 提交")
             return True
 
-        log(f"data/ 目录有 {len(lines)} 个变更，开始 Git 提交...")
+        log(f"data/ 目录{'有变更' if has_stash else '无变更但触发保底'}，开始 Git 提交...")
 
         # 切换到 data 分支
         r0 = subprocess.run(
@@ -577,15 +611,52 @@ def git_commit_push(repo_root: str) -> bool:
             cwd=str(root), capture_output=True, text=True, timeout=15
         )
         if r0.returncode != 0:
-            # data 分支不存在，创建它
             r0b = subprocess.run(
                 ["git", "checkout", "-b", "data"],
                 cwd=str(root), capture_output=True, text=True, timeout=15
             )
             if r0b.returncode != 0:
                 log(f"切换到 data 分支失败：{r0.stderr}")
+                # 如果 stash 了，尝试在原分支 pop 回来
+                if has_stash:
+                    subprocess.run(
+                        ["git", "stash", "pop"],
+                        cwd=str(root), capture_output=True, text=True, timeout=10
+                    )
                 return False
             log("已创建并切换到 data 分支")
+
+        # pop stash（如果有的话）
+        if has_stash:
+            r_pop = subprocess.run(
+                ["git", "stash", "pop"],
+                cwd=str(root), capture_output=True, text=True, timeout=15
+            )
+            if r_pop.returncode != 0:
+                log(f"stash pop 失败：{r_pop.stderr}")
+                subprocess.run(
+                    ["git", "stash", "drop"],
+                    cwd=str(root), capture_output=True, text=True, timeout=10
+                )
+                subprocess.run(
+                    ["git", "checkout", current_branch],
+                    cwd=str(root), capture_output=True, text=True, timeout=10
+                )
+                return False
+
+        # 检查是否有实际变更需要提交
+        r_status = subprocess.run(
+            ["git", "status", "--porcelain", "--", "data/"],
+            cwd=str(root), capture_output=True, text=True, timeout=10
+        )
+        lines = [l for l in r_status.stdout.strip().splitlines() if "data/" in l]
+        if not lines:
+            log("data/ 目录无变更，跳过 Git 提交")
+            subprocess.run(
+                ["git", "checkout", current_branch],
+                cwd=str(root), capture_output=True, text=True, timeout=10
+            )
+            return True
 
         # git add data/
         r1 = subprocess.run(
@@ -594,6 +665,10 @@ def git_commit_push(repo_root: str) -> bool:
         )
         if r1.returncode != 0:
             log(f"git add 失败：{r1.stderr}")
+            subprocess.run(
+                ["git", "checkout", current_branch],
+                cwd=str(root), capture_output=True, text=True, timeout=10
+            )
             return False
 
         # git commit
@@ -603,11 +678,18 @@ def git_commit_push(repo_root: str) -> bool:
             cwd=str(root), capture_output=True, text=True, timeout=15
         )
         if r2.returncode != 0:
-            # 可能是无变更，或者是其他错误
-            if "nothing to commit" in r2.stdout.lower() or "nothing to commit" in r2.stderr.lower():
+            if "nothing to commit" in (r2.stdout + r2.stderr).lower():
                 log("无变更需要提交")
+                subprocess.run(
+                    ["git", "checkout", current_branch],
+                    cwd=str(root), capture_output=True, text=True, timeout=10
+                )
                 return True
             log(f"git commit 失败：{r2.stderr}")
+            subprocess.run(
+                ["git", "checkout", current_branch],
+                cwd=str(root), capture_output=True, text=True, timeout=10
+            )
             return False
 
         log(f"已提交：{msg}")
@@ -626,6 +708,10 @@ def git_commit_push(repo_root: str) -> bool:
                     ["git", "rebase", "--abort"],
                     cwd=str(root), capture_output=True, text=True, timeout=10
                 )
+                subprocess.run(
+                    ["git", "checkout", current_branch],
+                    cwd=str(root), capture_output=True, text=True, timeout=10
+                )
                 return False
 
         r4 = subprocess.run(
@@ -634,13 +720,20 @@ def git_commit_push(repo_root: str) -> bool:
         )
         if r4.returncode != 0:
             log(f"git push 失败：{r4.stderr}")
+            subprocess.run(
+                ["git", "checkout", current_branch],
+                cwd=str(root), capture_output=True, text=True, timeout=10
+            )
             return False
 
         log("Git 推送到 data 分支成功")
 
-        # 切回 main 分支（避免后续操作在 data 分支上）
+        # 记录上次推送时间
+        marker.write_text(str(datetime.now().timestamp()), encoding="utf-8")
+
+        # 切回原分支（避免后续操作在 data 分支上）
         subprocess.run(
-            ["git", "checkout", "main"],
+            ["git", "checkout", current_branch],
             cwd=str(root), capture_output=True, text=True, timeout=10
         )
         return True
@@ -684,10 +777,11 @@ def main() -> None:
     cfg["report_date"] = report_date
     log(f"日报日期: {report_date}")
     log(f"启动模式：{args.mode}")
+    alert_triggered = False
     if args.mode == "select":
         run_select(cfg, args.max_stocks)
     elif args.mode == "monitor":
-        run_monitor(cfg)
+        alert_triggered = run_monitor(cfg)
     else:
         run_report(cfg)
     log("流程结束")
@@ -695,7 +789,7 @@ def main() -> None:
     # Git 自动提交：仓库根目录为 backend 的父目录
     if not args.no_git:
         repo_root = Path(__file__).resolve().parent.parent
-        git_commit_push(str(repo_root))
+        git_commit_push(str(repo_root), force=alert_triggered)
 
 
 if __name__ == "__main__":
