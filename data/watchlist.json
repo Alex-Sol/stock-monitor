@@ -2,56 +2,56 @@
   {
     "code": "600519",
     "name": "贵州茅台",
-    "price": 1253.0,
-    "change_pct": -0.48,
-    "volume": 5841730,
-    "volume_5d_avg": 6520000,
+    "price": NaN,
+    "change_pct": NaN,
+    "volume": NaN,
+    "volume_5d_avg": 52696.4,
     "high_20d": 1269.33,
     "low_20d": 1151.01,
-    "tick_time": "15:30:01"
-  },
-  {
-    "code": "300750",
-    "name": "宁德时代",
-    "price": 198.5,
-    "change_pct": 1.25,
-    "volume": 15200000,
-    "volume_5d_avg": 13800000,
-    "high_20d": 205.0,
-    "low_20d": 192.0,
-    "tick_time": "15:30:02"
-  },
-  {
-    "code": "000001",
-    "name": "平安银行",
-    "price": 11.2,
-    "change_pct": -0.85,
-    "volume": 42300000,
-    "volume_5d_avg": 48000000,
-    "high_20d": 11.85,
-    "low_20d": 10.95,
-    "tick_time": "15:30:01"
-  },
-  {
-    "code": "002594",
-    "name": "比亚迪",
-    "price": 93.47,
-    "change_pct": 2.18,
-    "volume": 9850000,
-    "volume_5d_avg": 8200000,
-    "high_20d": 95.0,
-    "low_20d": 85.5,
-    "tick_time": "15:30:03"
+    "tick_time": ""
   },
   {
     "code": "600036",
     "name": "招商银行",
-    "price": 33.85,
-    "change_pct": 0.35,
-    "volume": 18500000,
-    "volume_5d_avg": 22000000,
-    "high_20d": 34.5,
-    "low_20d": 32.8,
-    "tick_time": "15:30:01"
+    "price": NaN,
+    "change_pct": NaN,
+    "volume": NaN,
+    "volume_5d_avg": 963469.6,
+    "high_20d": 38.2,
+    "low_20d": 34.28,
+    "tick_time": ""
+  },
+  {
+    "code": "300750",
+    "name": "宁德时代",
+    "price": NaN,
+    "change_pct": NaN,
+    "volume": NaN,
+    "volume_5d_avg": 404407.6,
+    "high_20d": 414.04,
+    "low_20d": 346.16,
+    "tick_time": ""
+  },
+  {
+    "code": "002594",
+    "name": "比亚迪",
+    "price": NaN,
+    "change_pct": NaN,
+    "volume": NaN,
+    "volume_5d_avg": 556072.8,
+    "high_20d": 95.95,
+    "low_20d": 77.6,
+    "tick_time": ""
+  },
+  {
+    "code": "000001",
+    "name": "平安银行",
+    "price": NaN,
+    "change_pct": NaN,
+    "volume": NaN,
+    "volume_5d_avg": 995229.6,
+    "high_20d": 10.93,
+    "low_20d": 9.99,
+    "tick_time": ""
   }
 ]
